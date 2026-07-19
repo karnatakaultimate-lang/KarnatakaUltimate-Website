@@ -426,11 +426,30 @@ function EventDetails() {
                 </Typography>
               )}
             </Box>
-            <Chip
-              label={event.type}
-              color={getEventColor(event.type)}
-              sx={{ fontWeight: 'bold', fontSize: '0.9rem', flexShrink: 0, mt: { xs: 0, sm: 0.5 } }}
-            />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center', flexShrink: 0 }}>
+              <Chip
+                label={event.type}
+                color={getEventColor(event.type)}
+                size="small"
+                sx={{ fontWeight: 'bold' }}
+              />
+              <Chip
+                icon={event.is_public ? <PublicIcon /> : <LockIcon />}
+                label={event.is_public ? 'Public' : 'Private'}
+                variant="outlined" size="small"
+              />
+              <Chip
+                label={event.is_open ? 'Open RSVP' : 'Invite Only'}
+                variant="outlined" size="small"
+                color={event.is_open ? 'success' : 'warning'}
+              />
+              <Chip
+                label={event.is_paid ? `₹${event.fee_amount}` : 'Free'}
+                color={event.is_paid ? 'warning' : 'success'}
+                size="small" sx={{ fontWeight: 'bold' }}
+              />
+              {isPastEvent && <Chip label="Past Event" color="default" size="small" />}
+            </Box>
           </Box>
         </Box>
 
@@ -439,33 +458,6 @@ function EventDetails() {
 
             {/* ── Left column: meta + about ── */}
             <Grid size={{ xs: 12, md: 6 }}>
-              {/* Status chips — horizontal scroll on mobile */}
-              <Box sx={{
-                display: 'flex', gap: 1, mb: 3,
-                flexWrap: { xs: 'nowrap', sm: 'wrap' },
-                overflowX: { xs: 'auto', sm: 'visible' },
-                pb: { xs: 0.5, sm: 0 },
-                '&::-webkit-scrollbar': { display: 'none' },
-              }}>
-                <Chip
-                  icon={event.is_public ? <PublicIcon /> : <LockIcon />}
-                  label={event.is_public ? 'Public' : 'Private'}
-                  variant="outlined" size="small" sx={{ flexShrink: 0 }}
-                />
-                <Chip
-                  label={event.is_open ? 'Open RSVP' : 'Invite Only'}
-                  variant="outlined" size="small"
-                  color={event.is_open ? 'success' : 'warning'}
-                  sx={{ flexShrink: 0 }}
-                />
-                <Chip
-                  label={event.is_paid ? `₹${event.fee_amount}` : 'Free'}
-                  color={event.is_paid ? 'warning' : 'success'}
-                  size="small" sx={{ fontWeight: 'bold', flexShrink: 0 }}
-                />
-                {isPastEvent && <Chip label="Past Event" color="default" size="small" sx={{ flexShrink: 0, display: { xs: 'none', sm: 'flex' } }} />}
-              </Box>
-
               {/* Date & Location */}
               <Box sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary', mb: 2 }}>
                 <CalendarTodayIcon sx={{ fontSize: 22, mr: 1.5, color: 'primary.main' }} />
@@ -486,17 +478,10 @@ function EventDetails() {
                 {copied ? 'Link Copied!' : 'Share Event'}
               </Button>
 
-              {/* About */}
-              <Typography variant="h5" fontWeight="bold" gutterBottom>About</Typography>
-              {event.description ? (
+              {event.description && (
                 <Typography variant="body1" color="text.secondary"
                   sx={{ lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
                   {event.description}
-                </Typography>
-              ) : (
-                <Typography variant="body1" color="text.secondary"
-                  sx={{ lineHeight: 1.8, fontStyle: 'italic' }}>
-                  No description provided.
                 </Typography>
               )}
             </Grid>
@@ -804,19 +789,28 @@ function EventDetails() {
                                 }
                                 secondary={
                                   <>
-                                    <Typography component="span" variant="caption" color="text.secondary" display="block">
-                                      @{attendee.profiles?.username || 'user'}
-                                      {attendee.payment_reference_id && canModerate && (
-                                        <> · <Typography component="span" variant="caption" color="info.main">
-                                          Ref: {attendee.payment_reference_id}
-                                        </Typography></>
-                                      )}
-                                    </Typography>
-                                    {attendee.rsvp_comment && (
-                                      <Typography component="span" variant="caption" color="text.secondary"
-                                        display="block" sx={{ fontStyle: 'italic', mt: 0.25 }}>
-                                        "{attendee.rsvp_comment}"
+                                    {!attendee.rsvp_comment && (
+                                      <Typography component="span" variant="caption" color="text.secondary" display="block">
+                                        @{attendee.profiles?.username || 'user'}
+                                        {attendee.payment_reference_id && canModerate && (
+                                          <> · <Typography component="span" variant="caption" color="info.main">
+                                            Ref: {attendee.payment_reference_id}
+                                          </Typography></>
+                                        )}
                                       </Typography>
+                                    )}
+                                    {attendee.rsvp_comment && (
+                                      <>
+                                        {attendee.payment_reference_id && canModerate && (
+                                          <Typography component="span" variant="caption" color="info.main" display="block">
+                                            Ref: {attendee.payment_reference_id}
+                                          </Typography>
+                                        )}
+                                        <Typography component="span" variant="caption" color="text.secondary"
+                                          display="block" sx={{ fontStyle: 'italic' }}>
+                                          "{attendee.rsvp_comment}"
+                                        </Typography>
+                                      </>
                                     )}
                                   </>
                                 }
