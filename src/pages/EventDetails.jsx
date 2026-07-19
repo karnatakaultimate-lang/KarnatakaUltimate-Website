@@ -386,15 +386,17 @@ function EventDetails() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <Box>
-      {/* Top bar: back + delete */}
+    <Box sx={{ pb: { xs: event?.attendance_mode !== 'team' && !isPastEvent ? 10 : 0, sm: 0 } }}>
+      {/* Top bar: back + delete — icon-only on mobile */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/events')} sx={{ fontWeight: 'bold' }}>
-          Back to Events
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/events')}
+          sx={{ fontWeight: 'bold', minWidth: 'unset', '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.5 } } }}>
+          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Back to Events</Box>
         </Button>
         {canModerate && (
-          <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={() => setOpenDelete(true)}>
-            {deleteLabel}
+          <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={() => setOpenDelete(true)}
+            sx={{ minWidth: 'unset', '& .MuiButton-startIcon': { mr: { xs: 0, sm: 0.5 } } }}>
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{deleteLabel}</Box>
           </Button>
         )}
       </Box>
@@ -413,10 +415,17 @@ function EventDetails() {
             alignItems: { xs: 'flex-start', sm: 'flex-start' },
             gap: { xs: 1, sm: 2 },
           }}>
-            <Typography variant="h3" fontWeight="bold"
-              sx={{ lineHeight: 1.25, fontSize: { xs: '1.75rem', sm: '2.25rem', md: '3rem' } }}>
-              {event.title}
-            </Typography>
+            <Box>
+              <Typography variant="h3" fontWeight="bold"
+                sx={{ lineHeight: 1.25, fontSize: { xs: '1.75rem', sm: '2.25rem', md: '3rem' } }}>
+                {event.title}
+              </Typography>
+              {isPastEvent && (
+                <Typography variant="caption" color="text.disabled" sx={{ display: { xs: 'block', sm: 'none' }, mt: 0.5, fontWeight: 500 }}>
+                  Past Event
+                </Typography>
+              )}
+            </Box>
             <Chip
               label={event.type}
               color={getEventColor(event.type)}
@@ -430,24 +439,31 @@ function EventDetails() {
 
             {/* ── Left column: meta + about ── */}
             <Grid size={{ xs: 12, md: 6 }}>
-              {/* Status chips */}
-              <Box sx={{ display: 'flex', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
+              {/* Status chips — horizontal scroll on mobile */}
+              <Box sx={{
+                display: 'flex', gap: 1, mb: 3,
+                flexWrap: { xs: 'nowrap', sm: 'wrap' },
+                overflowX: { xs: 'auto', sm: 'visible' },
+                pb: { xs: 0.5, sm: 0 },
+                '&::-webkit-scrollbar': { display: 'none' },
+              }}>
                 <Chip
                   icon={event.is_public ? <PublicIcon /> : <LockIcon />}
                   label={event.is_public ? 'Public' : 'Private'}
-                  variant="outlined" size="small"
+                  variant="outlined" size="small" sx={{ flexShrink: 0 }}
                 />
                 <Chip
                   label={event.is_open ? 'Open RSVP' : 'Invite Only'}
                   variant="outlined" size="small"
                   color={event.is_open ? 'success' : 'warning'}
+                  sx={{ flexShrink: 0 }}
                 />
                 <Chip
                   label={event.is_paid ? `₹${event.fee_amount}` : 'Free'}
                   color={event.is_paid ? 'warning' : 'success'}
-                  size="small" sx={{ fontWeight: 'bold' }}
+                  size="small" sx={{ fontWeight: 'bold', flexShrink: 0 }}
                 />
-                {isPastEvent && <Chip label="Past Event" color="default" size="small" />}
+                {isPastEvent && <Chip label="Past Event" color="default" size="small" sx={{ flexShrink: 0, display: { xs: 'none', sm: 'flex' } }} />}
               </Box>
 
               {/* Date & Location */}
@@ -488,15 +504,15 @@ function EventDetails() {
             {/* ── Card 1 — Hosted By + RSVP ── */}
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Card sx={{ height: '100%', boxShadow: 0, border: '2px solid', borderColor: 'divider', borderRadius: 3 }}>
-                <CardContent sx={{ p: 3 }}>
+                <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                   <Typography variant="subtitle2" color="text.secondary" fontWeight="bold"
-                    sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1.5 }}>
+                    sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1.5, display: { xs: 'none', sm: 'block' } }}>
                     Hosted By
                   </Typography>
                   {hostingTeam ? (
                     <Box
                       onClick={() => navigate(`/teams/${hostingTeam.id}`)}
-                      sx={{ display: 'flex', alignItems: 'center', mb: 3, cursor: 'pointer' }}
+                      sx={{ display: 'flex', alignItems: 'center', mb: { xs: 0, sm: 3 }, cursor: 'pointer' }}
                     >
                       <Avatar src={hostingTeam.logo_url || undefined}
                         sx={{ width: 44, height: 44, mr: 1.5, bgcolor: 'grey.200', fontWeight: 'bold' }}>
@@ -510,7 +526,7 @@ function EventDetails() {
                       </Box>
                     </Box>
                   ) : (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: { xs: 0, sm: 3 } }}>
                       <Avatar sx={{ width: 44, height: 44, mr: 1.5, bgcolor: 'grey.200', fontWeight: 'bold' }}>
                         {creator?.avatar_url
                           ? <img src={creator.avatar_url} alt={creator?.full_name} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
@@ -523,8 +539,9 @@ function EventDetails() {
                     </Box>
                   )}
 
-                  <Divider sx={{ mb: 2 }} />
+                  <Divider sx={{ mb: 2, display: { xs: 'none', sm: 'block' } }} />
 
+                  <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
                   {isPastEvent ? (
                     <Button fullWidth variant="outlined" disabled sx={{ py: 1.5 }}>Event Ended</Button>
                   ) : event.attendance_mode === 'team' ? (
@@ -600,6 +617,7 @@ function EventDetails() {
                       {rsvpLoading ? <CircularProgress size={22} color="inherit" /> : 'RSVP Now'}
                     </Button>
                   )}
+                  </Box>
                 </CardContent>
               </Card>
 
@@ -730,7 +748,7 @@ function EventDetails() {
                               key={attendee.user_id}
                               disableGutters
                               divider={idx < attendees.length - 1}
-                              sx={{ py: 0.75 }}
+                              sx={{ py: { xs: 0.5, sm: 0.75 } }}
                               secondaryAction={
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                                   {canModerate && !isMe && attendee.status === 'pending' && (
@@ -763,9 +781,9 @@ function EventDetails() {
                             >
                               <ListItemAvatar sx={{ minWidth: 38 }}>
                                 <Avatar sx={{
-                                  width: 28, height: 28,
+                                  width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 },
                                   bgcolor: 'grey.200',
-                                  fontSize: '0.75rem', fontWeight: 'bold',
+                                  fontSize: '0.7rem', fontWeight: 'bold',
                                 }}>
                                   {attendee.profiles?.avatar_url
                                     ? <img src={attendee.profiles.avatar_url} alt={attendee.profiles?.full_name} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
@@ -816,6 +834,54 @@ function EventDetails() {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* ══ STICKY BOTTOM RSVP BAR — mobile only, individual mode ══ */}
+      {event.attendance_mode !== 'team' && (
+        <Box sx={{
+          display: { xs: 'block', sm: 'none' },
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1200,
+          bgcolor: 'background.paper',
+          borderTop: '1px solid', borderColor: 'divider',
+          px: 2, py: 1.5,
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
+        }}>
+          {isPastEvent ? (
+            <Button fullWidth variant="outlined" disabled sx={{ py: 1.25, fontWeight: 'bold' }}>Event Ended</Button>
+          ) : myAttendance ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                icon={statusIcon(myAttendance.status)}
+                label={
+                  myAttendance.status === 'confirmed' ? "You're In!" :
+                  myAttendance.status === 'pending'   ? 'Awaiting Approval' : 'Declined'
+                }
+                color={
+                  myAttendance.status === 'confirmed' ? 'success' :
+                  myAttendance.status === 'pending'   ? 'warning' : 'error'
+                }
+                sx={{ fontWeight: 'bold', flexGrow: 1, justifyContent: 'flex-start', fontSize: '0.85rem' }}
+              />
+              <Button size="small" color="error" variant="outlined" onClick={handleCancelRsvp}
+                sx={{ fontWeight: 'bold', flexShrink: 0 }}>
+                Cancel
+              </Button>
+            </Box>
+          ) : (
+            <Button
+              variant="contained" color="primary" fullWidth
+              disabled={rsvpLoading}
+              onClick={() => {
+                if (!user) { navigate('/login'); return; }
+                if (!event.is_paid && event.is_open) handleRsvpDirect();
+                else setOpenRsvp(true);
+              }}
+              sx={{ py: 1.25, fontSize: '1rem', fontWeight: 'bold', borderRadius: 2 }}
+            >
+              {rsvpLoading ? <CircularProgress size={20} color="inherit" /> : 'RSVP Now'}
+            </Button>
+          )}
+        </Box>
+      )}
 
       {/* ══ RSVP DIALOG ══ */}
       <Dialog open={openRsvp} onClose={() => { setOpenRsvp(false); setRsvpTeam(null); setRsvpComment(''); }} maxWidth="xs" fullWidth
