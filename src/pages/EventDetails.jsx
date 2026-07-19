@@ -38,6 +38,7 @@ function EventDetails() {
   // RSVP
   const [openRsvp,    setOpenRsvp]    = useState(false);
   const [paymentRef,  setPaymentRef]  = useState('');
+  const [rsvpComment, setRsvpComment] = useState('');
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [rsvpError,   setRsvpError]   = useState('');
   // Set when RSVPing on behalf of a team (attendance_mode === 'team'); null = individual RSVP
@@ -150,6 +151,7 @@ function EventDetails() {
       const { error } = await supabase.from('event_attendees').insert([{
         event_id: id, user_id: user.uid, status,
         payment_reference_id: event.is_paid ? paymentRef.trim() : null,
+        rsvp_comment: rsvpComment.trim() || null,
       }]);
       if (error) {
         if (error.code === '23505') setRsvpError('You have already RSVP\'d to this event.');
@@ -157,6 +159,7 @@ function EventDetails() {
       } else {
         setOpenRsvp(false);
         setPaymentRef('');
+        setRsvpComment('');
         await fetchEventData();
       }
     } catch (err) {
@@ -166,25 +169,10 @@ function EventDetails() {
     }
   };
 
-  // ── Direct RSVP (free + open — no dialog) ────────────────────────────────────
-  const handleRsvpDirect = async () => {
+  // ── Direct RSVP (free + open) — now opens dialog to allow optional comment ───
+  const handleRsvpDirect = () => {
     if (!user) { navigate('/login'); return; }
-    setRsvpLoading(true);
-    try {
-      const { error } = await supabase.from('event_attendees').insert([{
-        event_id: id, user_id: user.uid,
-        status: 'confirmed', payment_reference_id: null,
-      }]);
-      if (error) {
-        if (error.code === '23505') alert('You have already RSVP\'d to this event.');
-        else throw error;
-      }
-      await fetchEventData();
-    } catch (err) {
-      console.error('RSVP error:', err);
-    } finally {
-      setRsvpLoading(false);
-    }
+    setOpenRsvp(true);
   };
 
   // ── Cancel own RSVP ───────────────────────────────────────────────────────────
@@ -232,32 +220,13 @@ function EventDetails() {
 
   // ── Team RSVP (attendance_mode === 'team') ───────────────────────────────────
   const handleRsvpTeamClick = (team) => {
-    if (!event.is_paid && event.is_open) {
-      handleRsvpTeamDirect(team.id);
-    } else {
-      setRsvpTeam(team);
-      setOpenRsvp(true);
-    }
+    handleRsvpTeamDirect(team);
   };
 
-  // Direct team RSVP (free + open — no dialog)
-  const handleRsvpTeamDirect = async (teamId) => {
-    setRsvpLoading(true);
-    try {
-      const { error } = await supabase.from('event_team_attendees').insert([{
-        event_id: id, team_id: teamId, rsvp_by: user.uid,
-        status: 'confirmed', payment_reference_id: null,
-      }]);
-      if (error) {
-        if (error.code === '23505') alert('This team has already RSVP\'d to this event.');
-        else throw error;
-      }
-      await fetchEventData();
-    } catch (err) {
-      console.error('Team RSVP error:', err);
-    } finally {
-      setRsvpLoading(false);
-    }
+  // Direct team RSVP (free + open) — now opens dialog to allow optional comment
+  const handleRsvpTeamDirect = (team) => {
+    setRsvpTeam(team);
+    setOpenRsvp(true);
   };
 
   // Team RSVP via dialog (paid or invite-only)
@@ -278,6 +247,7 @@ function EventDetails() {
       const { error } = await supabase.from('event_team_attendees').insert([{
         event_id: id, team_id: rsvpTeam.id, rsvp_by: user.uid, status,
         payment_reference_id: event.is_paid ? paymentRef.trim() : null,
+        rsvp_comment: rsvpComment.trim() || null,
       }]);
       if (error) {
         if (error.code === '23505') setRsvpError('This team has already RSVP\'d to this event.');
@@ -285,6 +255,7 @@ function EventDetails() {
       } else {
         setOpenRsvp(false);
         setPaymentRef('');
+        setRsvpComment('');
         setRsvpTeam(null);
         await fetchEventData();
       }
@@ -622,8 +593,7 @@ function EventDetails() {
                       disabled={rsvpLoading}
                       onClick={() => {
                         if (!user) { navigate('/login'); return; }
-                        if (!event.is_paid && event.is_open) handleRsvpDirect();
-                        else setOpenRsvp(true);
+                        handleRsvpDirect();
                       }}
                       sx={{ py: 1.5, fontSize: '1.1rem', borderRadius: 2, fontWeight: 'bold' }}
                     >
@@ -722,10 +692,20 @@ function EventDetails() {
                                     </Typography>
                                   }
                                   secondary={
-                                    ta.payment_reference_id && canModerate ? (
-                                      <Typography variant="caption" color="info.main">
-                                        Ref: {ta.payment_reference_id}
-                                      </Typography>
+                                    (ta.payment_reference_id && canModerate) || ta.rsvp_comment ? (
+                                      <>
+                                        {ta.payment_reference_id && canModerate && (
+                                          <Typography component="span" variant="caption" color="info.main" display="block">
+                                            Ref: {ta.payment_reference_id}
+                                          </Typography>
+                                        )}
+                                        {ta.rsvp_comment && (
+                                          <Typography component="span" variant="caption" color="text.secondary"
+                                            display="block" sx={{ fontStyle: 'italic', mt: 0.25 }}>
+                                            "{ta.rsvp_comment}"
+                                          </Typography>
+                                        )}
+                                      </>
                                     ) : null
                                   }
                                 />
@@ -805,14 +785,22 @@ function EventDetails() {
                                   </Typography>
                                 }
                                 secondary={
-                                  <Typography variant="caption" color="text.secondary">
-                                    @{attendee.profiles?.username || 'user'}
-                                    {attendee.payment_reference_id && canModerate && (
-                                      <> · <Typography component="span" variant="caption" color="info.main">
-                                        Ref: {attendee.payment_reference_id}
-                                      </Typography></>
+                                  <>
+                                    <Typography component="span" variant="caption" color="text.secondary" display="block">
+                                      @{attendee.profiles?.username || 'user'}
+                                      {attendee.payment_reference_id && canModerate && (
+                                        <> · <Typography component="span" variant="caption" color="info.main">
+                                          Ref: {attendee.payment_reference_id}
+                                        </Typography></>
+                                      )}
+                                    </Typography>
+                                    {attendee.rsvp_comment && (
+                                      <Typography component="span" variant="caption" color="text.secondary"
+                                        display="block" sx={{ fontStyle: 'italic', mt: 0.25 }}>
+                                        "{attendee.rsvp_comment}"
+                                      </Typography>
                                     )}
-                                  </Typography>
+                                  </>
                                 }
                               />
                             </ListItem>
@@ -830,7 +818,7 @@ function EventDetails() {
       </Card>
 
       {/* ══ RSVP DIALOG ══ */}
-      <Dialog open={openRsvp} onClose={() => { setOpenRsvp(false); setRsvpTeam(null); }} maxWidth="xs" fullWidth
+      <Dialog open={openRsvp} onClose={() => { setOpenRsvp(false); setRsvpTeam(null); setRsvpComment(''); }} maxWidth="xs" fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 'bold', fontSize: '1.4rem' }}>
           Confirm RSVP{rsvpTeam ? ` — ${rsvpTeam.name}` : ''}
@@ -865,13 +853,30 @@ function EventDetails() {
             </>
           )}
           {!event.is_paid && !event.is_open && (
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
               Click confirm to send your RSVP request. The host will review and approve it.
             </Typography>
           )}
+          {!event.is_paid && event.is_open && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Free, open event — RSVP instantly. Leave a note for the host if you'd like.
+            </Typography>
+          )}
+          <TextField
+            fullWidth
+            label="Comment (optional)"
+            placeholder="e.g. Bringing a guest, dietary restriction, question for the host…"
+            multiline
+            minRows={2}
+            margin="normal"
+            inputProps={{ maxLength: 280 }}
+            value={rsvpComment}
+            onChange={(e) => setRsvpComment(e.target.value)}
+            helperText={`${rsvpComment.length}/280`}
+          />
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button onClick={() => { setOpenRsvp(false); setRsvpTeam(null); }} disabled={rsvpLoading}>Cancel</Button>
+          <Button onClick={() => { setOpenRsvp(false); setRsvpTeam(null); setRsvpComment(''); }} disabled={rsvpLoading}>Cancel</Button>
           <Button variant="contained" onClick={rsvpTeam ? handleRsvpTeam : handleRsvp} disabled={rsvpLoading} sx={{ px: 4 }}>
             {rsvpLoading ? 'Submitting…' : 'Confirm RSVP'}
           </Button>
