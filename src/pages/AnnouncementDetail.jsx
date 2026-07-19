@@ -124,8 +124,8 @@ function AnnouncementDetail() {
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 3 }}>
             <Box
               sx={{
-                bgcolor: 'primary.main',
-                color: 'white',
+                bgcolor: 'grey.100',
+                color: 'primary.main',
                 p: 1.25,
                 borderRadius: '50%',
                 display: { xs: 'none', sm: 'flex' },

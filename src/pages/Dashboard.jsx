@@ -161,7 +161,7 @@ function Dashboard() {
         <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 2 }}>
             <CardContent sx={{ textAlign: 'center', p: 4, flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <Avatar sx={{ width: 90, height: 90, mx: 'auto', mb: 2, bgcolor: 'primary.main', fontSize: '2rem', fontWeight: 'bold' }}>
+              <Avatar sx={{ width: 90, height: 90, mx: 'auto', mb: 2, bgcolor: 'grey.200', fontSize: '2rem', fontWeight: 'bold', color: 'text.secondary' }}>
                 {user?.photoURL
                   ? <img src={user.photoURL} alt={displayName} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
                   : initials
@@ -200,31 +200,45 @@ function Dashboard() {
           </Card>
         </Grid>
 
-        {/* Reward Points — plain card with primary accent */}
+        {/* Reward Points */}
         <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: 2 }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', p: 4 }}>
-              <Avatar sx={{ bgcolor: 'transparent', border: '2px solid', borderColor: 'primary.main', mr: 3, width: 64, height: 64 }}>
-                <StarsIcon fontSize="large" sx={{ color: 'primary.main' }} />
-              </Avatar>
-              <Box>
-                <Typography variant="h3" fontWeight="bold" color="primary.main" sx={{ fontSize: { xs: '2rem', md: '3rem' } }}>{rewardPoints.toLocaleString()}</Typography>
-                <Typography variant="body1" color="text.secondary" fontWeight={500}>Reward Points</Typography>
+          <Card sx={{ height: '100%', boxShadow: 2 }}>
+            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <Box sx={{ p: 1.25, bgcolor: 'grey.100', borderRadius: '50%', display: 'flex', flexShrink: 0, mt: 0.25 }}>
+                  <StarsIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500} sx={{ mb: 0.5 }}>Reward Points</Typography>
+                  <Typography variant="h4" fontWeight="bold" color="text.primary" sx={{ fontSize: { xs: '1.75rem', md: '2.125rem' }, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                    {rewardPoints.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                    {rewardPoints === 0 ? 'Complete tasks to earn points' : 'total accumulated'}
+                  </Typography>
+                </Box>
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* My Teams count — plain card */}
+        {/* My Teams count */}
         <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: 2 }}>
-            <CardContent sx={{ display: 'flex', alignItems: 'center', p: 4 }}>
-              <Avatar sx={{ bgcolor: 'transparent', border: '2px solid', borderColor: 'success.main', mr: 3, width: 64, height: 64 }}>
-                <GroupsIcon fontSize="large" sx={{ color: 'success.main' }} />
-              </Avatar>
-              <Box>
-                <Typography variant="h3" fontWeight="bold" color="success.main" sx={{ fontSize: { xs: '2rem', md: '3rem' } }}>{myTeams.length}</Typography>
-                <Typography variant="body1" color="text.secondary" fontWeight={500}>My Teams</Typography>
+          <Card sx={{ height: '100%', boxShadow: 2 }}>
+            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <Box sx={{ p: 1.25, bgcolor: 'grey.100', borderRadius: '50%', display: 'flex', flexShrink: 0, mt: 0.25 }}>
+                  <GroupsIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500} sx={{ mb: 0.5 }}>My Teams</Typography>
+                  <Typography variant="h4" fontWeight="bold" color="text.primary" sx={{ fontSize: { xs: '1.75rem', md: '2.125rem' }, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                    {myTeams.length}
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                    {myTeams.length === 0 ? 'Join a team to get started' : `active team${myTeams.length !== 1 ? 's' : ''}`}
+                  </Typography>
+                </Box>
               </Box>
             </CardContent>
           </Card>
@@ -285,7 +299,7 @@ function Dashboard() {
         open={editOpen}
         onClose={() => !editSaving && setEditOpen(false)}
         maxWidth="sm" fullWidth
-        PaperProps={{ sx: { borderRadius: 3 } }}
+        PaperProps={{ sx: { borderRadius: 2 } }}
       >
         <DialogTitle sx={{ fontWeight: 'bold', fontSize: '1.4rem' }}>Edit Profile</DialogTitle>
         <DialogContent>
