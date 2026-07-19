@@ -190,7 +190,7 @@ function Grievances() {
         open={submitOpen}
         onClose={() => !formSaving && setSubmitOpen(false)}
         maxWidth="sm" fullWidth
-        PaperProps={{ sx: { borderRadius: 3 } }}
+        PaperProps={{ sx: { borderRadius: 2 } }}
       >
         <DialogTitle sx={{ fontWeight: 'bold', fontSize: '1.4rem' }}>Submit a Grievance</DialogTitle>
         <DialogContent>

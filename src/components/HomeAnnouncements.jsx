@@ -38,7 +38,7 @@ function HomeAnnouncements() {
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 3 }}>
       <Box sx={{ p: 3, bgcolor: 'grey.100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5" fontWeight="bold" color="primary.main">Notice Board</Typography>
+        <Typography variant="h5" fontWeight="bold">Notice Board</Typography>
         <Button variant="outlined" size="small" onClick={() => navigate('/announcements')}>
           View All
         </Button>

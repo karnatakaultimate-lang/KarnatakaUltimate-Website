@@ -161,7 +161,7 @@ function Login() {
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', pt: 8 }}>
         <Card sx={{ maxWidth: 450, width: '100%', p: 3, boxShadow: 3 }}>
           <CardContent>
-            <Typography variant="h4" gutterBottom fontWeight="bold" align="center" color="primary.main"
+            <Typography variant="h4" gutterBottom fontWeight="bold" align="center"
               sx={{ fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
               Complete Profile
             </Typography>
@@ -200,7 +200,7 @@ function Login() {
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', pt: 8 }}>
       <Card sx={{ maxWidth: 450, width: '100%', p: 3, boxShadow: 3 }}>
         <CardContent>
-          <Typography variant="h4" gutterBottom fontWeight="bold" align="center" color="primary.main"
+          <Typography variant="h4" gutterBottom fontWeight="bold" align="center"
             sx={{ fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
             Welcome to KUPA
           </Typography>

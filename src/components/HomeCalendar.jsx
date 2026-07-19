@@ -52,9 +52,9 @@ function HomeCalendar() {
 
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', boxShadow: 3 }}>
-      <Box sx={{ p: 3, bgcolor: 'primary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ p: 3, bgcolor: 'secondary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h5" fontWeight="bold">Upcoming Events</Typography>
-        <Button variant="contained" color="secondary" size="small" onClick={() => navigate('/events')}>
+        <Button variant="contained" color="primary" size="small" onClick={() => navigate('/events')}>
           View Calendar
         </Button>
       </Box>

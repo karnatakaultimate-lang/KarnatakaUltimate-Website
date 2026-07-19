@@ -293,7 +293,7 @@ function Teams() {
         open={createOpen}
         onClose={() => !createSaving && setCreateOpen(false)}
         maxWidth="sm" fullWidth
-        PaperProps={{ sx: { borderRadius: 3 } }}
+        PaperProps={{ sx: { borderRadius: 2 } }}
       >
         <DialogTitle sx={{ fontWeight: 'bold', fontSize: '1.4rem' }}>Create Team</DialogTitle>
         <DialogContent>

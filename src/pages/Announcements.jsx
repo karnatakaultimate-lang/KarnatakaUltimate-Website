@@ -37,7 +37,7 @@ function Announcements() {
   return (
     <Box>
       <Box sx={{ mb: 6, textAlign: 'center', mt: 2 }}>
-        <Typography variant="h2" fontWeight="bold" gutterBottom color="primary.main"
+        <Typography variant="h2" fontWeight="bold" gutterBottom
           sx={{ fontSize: { xs: '2rem', md: '3.75rem' } }}>
           Notice Board
         </Typography>
@@ -74,8 +74,8 @@ function Announcements() {
                 >
                   <Box
                     sx={{
-                      bgcolor: 'primary.main',
-                      color: 'white',
+                      bgcolor: 'grey.100',
+                      color: 'primary.main',
                       p: 1.5,
                       borderRadius: '50%',
                       display: { xs: 'none', sm: 'flex' },

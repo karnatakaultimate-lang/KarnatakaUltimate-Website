@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-18T00:00:00Z",
+  "title": "Design System: KUPA",
+  "extensions": {
+    "colorMeta": {
+      "club-red": {
+        "role": "primary",
+        "displayName": "Club Red",
+        "canonical": "oklch(45% 0.20 27)",
+        "tonalRamp": [
+          "oklch(20% 0.18 27)",
+          "oklch(28% 0.20 27)",
+          "oklch(36% 0.20 27)",
+          "oklch(45% 0.20 27)",
+          "oklch(54% 0.18 27)",
+          "oklch(65% 0.13 27)",
+          "oklch(78% 0.08 27)",
+          "oklch(92% 0.03 27)"
+        ]
+      },
+      "ink": {
+        "role": "secondary",
+        "displayName": "Ink",
+        "canonical": "oklch(17% 0 0)",
+        "tonalRamp": [
+          "oklch(10% 0 0)",
+          "oklch(17% 0 0)",
+          "oklch(28% 0 0)",
+          "oklch(40% 0 0)",
+          "oklch(55% 0 0)",
+          "oklch(68% 0 0)",
+          "oklch(80% 0 0)",
+          "oklch(93% 0 0)"
+        ]
+      },
+      "field-grey": {
+        "role": "neutral",
+        "displayName": "Field Grey",
+        "canonical": "oklch(96% 0 0)",
+        "tonalRamp": [
+          "oklch(20% 0 0)",
+          "oklch(35% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(65% 0 0)",
+          "oklch(78% 0 0)",
+          "oklch(87% 0 0)",
+          "oklch(96% 0 0)",
+          "oklch(100% 0 0)"
+        ]
+      },
+      "surface-white": {
+        "role": "neutral",
+        "displayName": "Surface White",
+        "canonical": "oklch(100% 0 0)",
+        "tonalRamp": [
+          "oklch(20% 0 0)",
+          "oklch(35% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(65% 0 0)",
+          "oklch(78% 0 0)",
+          "oklch(87% 0 0)",
+          "oklch(96% 0 0)",
+          "oklch(100% 0 0)"
+        ]
+      },
+      "warning-amber": {
+        "role": "tertiary",
+        "displayName": "Warning Amber",
+        "canonical": "oklch(64% 0.15 65)",
+        "tonalRamp": [
+          "oklch(25% 0.12 65)",
+          "oklch(35% 0.14 65)",
+          "oklch(46% 0.15 65)",
+          "oklch(56% 0.15 65)",
+          "oklch(64% 0.14 65)",
+          "oklch(76% 0.11 65)",
+          "oklch(87% 0.07 65)",
+          "oklch(95% 0.03 65)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page-level hero titles, event name on detail pages, hero carousel headline. Desktop ceiling 2.25rem." },
+      "headline": { "displayName": "Headline", "purpose": "Card section headers, dialog titles, announcement titles." },
+      "title": { "displayName": "Title", "purpose": "Card sub-headers, list item labels, chip group labels." },
+      "body": { "displayName": "Body", "purpose": "All body copy. Max 70ch line length on prose sections." },
+      "label": { "displayName": "Label", "purpose": "Metadata chips, status indicators, navigation sub-labels, caption timestamps." }
+    },
+    "shadows": [
+      {
+        "name": "card-ambient",
+        "value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+        "purpose": "Default card elevation. Lifted-but-not-loud. All content cards."
+      },
+      {
+        "name": "appbar",
+        "value": "0 2px 4px -1px rgb(0 0 0 / 0.08)",
+        "purpose": "AppBar separation from page content below."
+      },
+      {
+        "name": "modal",
+        "value": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        "purpose": "Dialogs, drawers, confirmation modals. Sits clearly above backdrop."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default easing for all state transitions: button hover, card hover, chip selection."
+      },
+      {
+        "name": "carousel-crossfade",
+        "value": "opacity 0.8s ease-in-out",
+        "purpose": "Hero carousel slide transition. Opacity crossfade — naturally reduced-motion safe."
+      },
+      {
+        "name": "quick-state",
+        "value": "0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Micro-interactions: button color shift on hover, nav link active state."
+      }
+    ],
+    "breakpoints": [
+      { "name": "xs", "value": "0px" },
+      { "name": "sm", "value": "600px" },
+      { "name": "md", "value": "900px" },
+      { "name": "lg", "value": "1200px" },
+      { "name": "xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one CTA per screen. Club Red fill, white text, no all-caps.",
+      "html": "<button class=\"ds-btn-primary\">RSVP Now</button>",
+      "css": ".ds-btn-primary { background: #d32f2f; color: #ffffff; padding: 10px 24px; font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.9375rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; text-transform: none; letter-spacing: 0; transition: background 0.15s cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { background: #b71c1c; } .ds-btn-primary:focus-visible { outline: 2px solid #d32f2f; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.38; cursor: default; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Back navigation, cancel actions, footer sitemap links.",
+      "html": "<button class=\"ds-btn-ghost\">← Back to Events</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #d32f2f; padding: 10px 24px; font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.9375rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; text-transform: none; transition: background 0.15s cubic-bezier(0.4,0,0.2,1); } .ds-btn-ghost:hover { background: rgba(211, 47, 47, 0.06); } .ds-btn-ghost:focus-visible { outline: 2px solid #d32f2f; outline-offset: 2px; }"
+    },
+    {
+      "name": "Outlined Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary actions: Share, Copy Link, secondary confirmations.",
+      "html": "<button class=\"ds-btn-outlined\">Share</button>",
+      "css": ".ds-btn-outlined { background: transparent; color: #d32f2f; border: 1px solid #d32f2f; padding: 9px 23px; font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.9375rem; font-weight: 600; border-radius: 8px; cursor: pointer; text-transform: none; transition: background 0.15s cubic-bezier(0.4,0,0.2,1); } .ds-btn-outlined:hover { background: rgba(211, 47, 47, 0.06); } .ds-btn-outlined:focus-visible { outline: 2px solid #d32f2f; outline-offset: 2px; }"
+    },
+    {
+      "name": "Content Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Primary content container. Lifted above field-grey ground. Never nested.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-body\"><p class=\"ds-card-title\">Event Name</p><p class=\"ds-card-meta\">Saturday, 14 June · 10:00 AM</p></div></div>",
+      "css": ".ds-card { background: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); overflow: hidden; } .ds-card-body { padding: 24px; } .ds-card-title { font-family: Inter, Helvetica, Arial, sans-serif; font-size: 1.125rem; font-weight: 600; color: #212121; margin: 0 0 4px; } .ds-card-meta { font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.875rem; font-weight: 400; color: #757575; margin: 0; }"
+    },
+    {
+      "name": "Primary Card (accented)",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The dominant card on a detail page. Club Red 6px top border signals the primary artifact.",
+      "html": "<div class=\"ds-card-primary\"><div class=\"ds-card-primary-body\"><h2 class=\"ds-card-primary-title\">Club Championship 2026</h2><p class=\"ds-card-primary-sub\">Saturday, 21 June · Kupa Arena</p></div></div>",
+      "css": ".ds-card-primary { background: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); border-top: 6px solid #d32f2f; overflow: hidden; } .ds-card-primary-body { padding: 20px 24px 24px; background: #fafafa; } .ds-card-primary-title { font-family: Inter, Helvetica, Arial, sans-serif; font-size: clamp(1.75rem, 4vw, 2.25rem); font-weight: 700; color: #212121; letter-spacing: -0.02em; margin: 0 0 8px; } .ds-card-primary-sub { font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.9375rem; color: #757575; margin: 0; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "description": "Event/RSVP status, grievance state. Uses semantic colors — red for live/open, green for confirmed, grey for neutral.",
+      "html": "<span class=\"ds-chip ds-chip--open\">Open</span> <span class=\"ds-chip ds-chip--confirmed\">Confirmed</span> <span class=\"ds-chip ds-chip--neutral\">Past</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 9999px; font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em; } .ds-chip--open { background: rgba(211,47,47,0.12); color: #c62828; } .ds-chip--confirmed { background: rgba(56,142,60,0.12); color: #2e7d32; } .ds-chip--neutral { background: rgba(0,0,0,0.08); color: #616161; }"
+    },
+    {
+      "name": "Navigation Bar",
+      "kind": "nav",
+      "description": "Sticky white AppBar, red active link, ghost nav links, contained primary CTA (myKUPA/Login).",
+      "html": "<nav class=\"ds-nav\"><a href=\"/\" class=\"ds-nav-logo\">KUPA</a><div class=\"ds-nav-links\"><a href=\"/events\" class=\"ds-nav-link ds-nav-link--active\">Calendar</a><a href=\"/teams\" class=\"ds-nav-link\">Teams</a><a href=\"/announcements\" class=\"ds-nav-link\">Announcements</a></div><button class=\"ds-nav-cta\">myKUPA ▾</button></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; height: 64px; padding: 0 24px; background: #ffffff; box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.08); gap: 32px; } .ds-nav-logo { font-family: Inter, Helvetica, Arial, sans-serif; font-size: 1.25rem; font-weight: 700; color: #212121; text-decoration: none; } .ds-nav-links { display: flex; gap: 4px; flex: 1; justify-content: flex-end; margin-right: 8px; } .ds-nav-link { font-family: Inter, Helvetica, Arial, sans-serif; font-size: 1rem; font-weight: 600; color: #757575; text-decoration: none; padding: 8px 12px; border-radius: 6px; transition: color 0.15s; } .ds-nav-link:hover { color: #d32f2f; } .ds-nav-link--active { color: #d32f2f; } .ds-nav-cta { background: #d32f2f; color: #ffffff; font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.9375rem; font-weight: 700; border: none; border-radius: 8px; padding: 8px 20px; cursor: pointer; transition: background 0.15s; } .ds-nav-cta:hover { background: #b71c1c; }"
+    },
+    {
+      "name": "Member Avatar",
+      "kind": "custom",
+      "description": "Person avatar with grey fallback bg (not red, to avoid conflict with team logos). Shows profile photo when available.",
+      "html": "<div class=\"ds-avatar\">AB</div>",
+      "css": ".ds-avatar { width: 40px; height: 40px; border-radius: 50%; background: #e0e0e0; display: flex; align-items: center; justify-content: center; font-family: Inter, Helvetica, Arial, sans-serif; font-size: 0.875rem; font-weight: 600; color: #616161; overflow: hidden; flex-shrink: 0; } .ds-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Broadcast Signal",
+    "overview": "KUPA is built around the visual grammar of sports broadcasting: a hierarchy so clear that what matters is legible at a glance. Every screen answers one question first — the upcoming match, the open RSVP, the live roster — then organizes everything else beneath it. The red is not decoration; it is the signal.\n\nThe surface is clean light grey (#f5f5f5) — not a warm cream, not a branded neutral, just the neutral ground a clubhouse notice board needs. White cards float above it with soft shadow. The system is compact without being cramped, informative without feeling like a dashboard.\n\nThis system explicitly rejects: the grey corporate intranet, the SaaS dashboard template, and the kiddy-club energy. KUPA is for adults who take their sport seriously.",
+    "keyCharacteristics": [
+      "Club red is the primary signal: primary CTA, active state, live badge. Nowhere else.",
+      "Cards lift off the grey ground — they are objects, not regions.",
+      "Type hierarchy is decisive: one heading per section, one dominant action per card.",
+      "Mobile-native pacing — the layout earns its mobile form first.",
+      "Community warmth lives in content (team photos, avatars, event names), not in decorative rounding or pastel accents."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Club Red appears on ≤2 elements per screen at any time. Its rarity is what makes it mean 'act here.' Seeing red twice on the same card means one of them is wrong.", "section": "colors" },
+      { "name": "The No Warm-Neutral Rule", "body": "The grey palette has zero warm or cool tint. #f5f5f5 is chroma-zero neutral. Do not swap it for beige, cream, sand, or any warm-tinted near-white.", "section": "colors" },
+      { "name": "The No Eyebrow Rule", "body": "Never use a small all-caps tracked label above every card heading. One status chip or metadata line per card is fine; a structural eyebrow above the heading on every section is the AI scaffold tell.", "section": "typography" },
+      { "name": "The Letter-Spacing Floor", "body": "Display and headline letter-spacing at -0.02em to -0.01em. Never below -0.04em — at that point letters touch.", "section": "typography" },
+      { "name": "The Single Shadow Rule", "body": "A surface uses one shadow role only. No border: 1px solid X plus a wide drop shadow on the same card — pick the shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Use Club Red (#d32f2f) for exactly one primary CTA per screen and for active navigation states.",
+      "Cap body prose at max-width: 70ch on description paragraphs.",
+      "Use the soft card ambient shadow and white background — cards should feel physically lifted above the grey canvas.",
+      "Use textTransform: none on all buttons; sentence-case reads faster.",
+      "Use referrerPolicy='no-referrer' on all img tags loading Google photo URLs.",
+      "Write prefers-reduced-motion alternatives for every animation — use opacity crossfade as the fallback.",
+      "Use a 6px top border in Club Red only on the single dominant card per page."
+    ],
+    "donts": [
+      "Don't use Club Red as a background color for large areas, hero sections, or card fills.",
+      "Don't use border: 1px solid X and a box-shadow wider than 8px blur on the same element.",
+      "Don't use border-radius larger than 16px on cards or content containers.",
+      "Don't use warm-tinted neutrals for backgrounds. The palette is chroma-zero neutral grey.",
+      "Don't nest MUI Cards — use a Box with padding and a divider instead.",
+      "Don't add a structural eyebrow (small tracked all-caps label) above every section heading.",
+      "Don't make the interface feel like a generic corporate HR tool, a kids' app, or a SaaS startup dashboard.",
+      "Don't use border-left or border-right wider than 1px as a colored accent stripe on cards or list items."
+    ]
+  }
+}
