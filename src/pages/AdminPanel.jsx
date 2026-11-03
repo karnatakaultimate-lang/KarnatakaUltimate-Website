@@ -14,11 +14,13 @@ import CampaignIcon from '@mui/icons-material/Campaign';
 import PeopleIcon from '@mui/icons-material/People';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import GroupsIcon from '@mui/icons-material/Groups';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import GavelIcon from '@mui/icons-material/Gavel';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import ImageIcon from '@mui/icons-material/Image';
 import SearchIcon from '@mui/icons-material/Search';
@@ -32,19 +34,26 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useAuth } from '../contexts/AuthContext';
 import { useSiteConfig } from '../contexts/SiteConfigContext';
+import ReactMarkdown from 'react-markdown';
 import { supabase } from '../supabaseClient';
 import { storage } from '../firebaseClient';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { resizeImage } from '../utils/resizeImage';
+import { TASK_CATEGORIES, getCategoryStyle } from '../constants/taskCategories';
+import { REDEMPTION_CATEGORIES, getRedemptionCategoryStyle } from '../constants/redemptionCategories';
+import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const MODULE_CONFIG = [
-  { key: 'is_store_enabled',     label: 'Merchandise Store', description: 'Shows or hides the Merchandise module in the navigation and disables direct URL access.', icon: <StorefrontIcon /> },
-  { key: 'is_taskboard_enabled', label: 'Task Board',        description: 'Shows or hides the Task Board module. Members will not be able to claim tasks when disabled.', icon: <TaskAltIcon /> },
-  { key: 'is_teams_enabled',     label: 'Teams',             description: 'Shows or hides the Teams module. Members will not be able to browse or join teams when disabled.', icon: <GroupsIcon /> },
+  { key: 'is_store_enabled',            label: 'Merchandise Store', description: 'Shows or hides the Merchandise module in the navigation and disables direct URL access.', icon: <StorefrontIcon /> },
+  { key: 'is_taskboard_enabled',        label: 'Task Board',        description: 'Shows or hides the Task Board module. Members will not be able to claim tasks when disabled.', icon: <TaskAltIcon /> },
+  { key: 'is_teams_enabled',            label: 'Teams',             description: 'Shows or hides the Teams module. Members will not be able to browse or join teams when disabled.', icon: <GroupsIcon /> },
+  { key: 'is_player_stories_enabled',   label: 'Player Stories',    description: 'Shows or hides the Player Stories section on the landing page and the /stories page.', icon: <PeopleIcon /> },
 ];
 
 const GRIEVANCE_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
@@ -56,9 +65,9 @@ const MEMBERSHIP_STATUSES = ['Active', 'Expiring Soon', 'Expired', 'Pending Appr
 const EMPTY_SLIDE_FORM = { title: '', description: '' };
 const EMPTY_PARTNER_FORM = { name: '', type: 'Sponsor' };
 const PARTNER_TYPES = ['Sponsor', 'Partner'];
-const IMAGE_BUCKET = 'announcement-images';
 const EMPTY_ANN_FORM = { title: '', description: '', date: new Date().toISOString().slice(0, 10) };
-const EMPTY_TASK_FORM = { title: '', description: '', points: '' };
+const EMPTY_TASK_FORM = { title: '', description: '', points: '', category: '', requires_photo_proof: false, is_multi_user: false };
+const EMPTY_ITEM_FORM = { title: '', description: '', category: 'Membership', points_cost: '', requires_approval: true, quantity_limit: '', is_active: true };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -81,6 +90,67 @@ const storagePathFromUrl = (url) => {
   if (!url) return null;
   const match = url.match(/\/o\/(.+?)\?/);
   return match ? decodeURIComponent(match[1]) : null;
+};
+
+// ── CSV helpers ────────────────────────────────────────────────────────────
+
+const CSV_HEADERS = 'title,description,points,category,requires_photo_proof,is_multi_user';
+const CSV_EXAMPLE = [
+  'Field Setup — Koramangala,"Set up cones, discs, and goals before the match.",50,Field Setup,false,false',
+  'Event Photography,Take photos during the tournament for social media.,75,Media & Photography,true,true',
+].join('\n');
+
+const downloadTaskTemplate = () => {
+  const blob = new Blob([CSV_HEADERS + '\n' + CSV_EXAMPLE], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'tasks_template.csv'; a.click();
+  URL.revokeObjectURL(url);
+};
+
+const parseCSVLine = (line) => {
+  const result = [];
+  let cur = '', inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQuote = !inQuote; }
+    else if (c === ',' && !inQuote) { result.push(cur.trim()); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur.trim());
+  return result;
+};
+
+const parseBool = (v) => ['true', 'yes', '1'].includes(String(v ?? '').toLowerCase().trim());
+
+const parseTaskCSV = (text) => {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z_]/g, ''));
+  return lines.slice(1).map((line, i) => {
+    if (!line.trim()) return null;
+    const vals = parseCSVLine(line);
+    const raw = {};
+    headers.forEach((h, j) => { raw[h] = vals[j] ?? ''; });
+    const errors = [];
+    const title = (raw.title || '').trim();
+    if (!title) errors.push('Title is required');
+    const points = parseInt(raw.points, 10);
+    if (isNaN(points) || points < 1) errors.push('Points must be a positive integer');
+    const category = (raw.category || '').trim();
+    const validCat = TASK_CATEGORIES.find(c => c.label.toLowerCase() === category.toLowerCase());
+    if (!validCat) errors.push(`Unknown category "${category}"`);
+    return {
+      _row: i + 2,
+      title,
+      description: (raw.description || '').trim() || null,
+      points: isNaN(points) ? 0 : points,
+      category: validCat?.label ?? category,
+      requires_photo_proof: parseBool(raw.requires_photo_proof),
+      is_multi_user: parseBool(raw.is_multi_user),
+      errors,
+    };
+  }).filter(Boolean);
 };
 
 // ── Tab panel helper ───────────────────────────────────────────────────────
@@ -127,6 +197,13 @@ function AdminPanel() {
   const [allTasks, setAllTasks] = useState([]);
   const [allTasksLoading, setAllTasksLoading] = useState(true);
   const [deletingTaskId, setDeletingTaskId] = useState(null);
+  // Bulk CSV upload
+  const [csvDialog, setCsvDialog] = useState({ open: false, step: 'upload' });
+  const [csvRows, setCsvRows] = useState([]);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvResult, setCsvResult] = useState(null);
+  const [csvDragOver, setCsvDragOver] = useState(false);
+  const csvFileRef = useRef(null);
 
   // ── Teams state ────────────────────────────────────────────────────────────
   const [teams, setTeams] = useState([]);
@@ -142,16 +219,36 @@ function AdminPanel() {
   const [grievancesLoading, setGrievancesLoading] = useState(true);
   const [updatingGrievanceId, setUpdatingGrievanceId] = useState(null);
 
+  // ── Redemption items state ─────────────────────────────────────────────────
+  const [redemptionItems, setRedemptionItems] = useState([]);
+  const [redemptionItemsLoading, setRedemptionItemsLoading] = useState(true);
+  const [itemFormOpen, setItemFormOpen] = useState(false);
+  const [itemForm, setItemForm] = useState(EMPTY_ITEM_FORM);
+  const [itemFormError, setItemFormError] = useState('');
+  const [itemFormSaving, setItemFormSaving] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState(null);
+  const [togglingItemId, setTogglingItemId] = useState(null);
+
+  // ── Redemption requests state ──────────────────────────────────────────────
+  const [redemptionRequests, setRedemptionRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [processingRequestId, setProcessingRequestId] = useState(null);
+  const [rejectDialog, setRejectDialog] = useState({ open: false, id: null, note: '' });
+  const [rejectSaving, setRejectSaving] = useState(false);
+
   // ── Announcements state ────────────────────────────────────────────────────
   const [announcements, setAnnouncements] = useState([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
   const [annFormOpen, setAnnFormOpen] = useState(false);
   const [annForm, setAnnForm] = useState(EMPTY_ANN_FORM);
+  const [annPreview, setAnnPreview] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [annFormError, setAnnFormError] = useState('');
   const [annFormSaving, setAnnFormSaving] = useState(false);
   const [deletingAnnId, setDeletingAnnId] = useState(null);
+  const [editingAnnId, setEditingAnnId] = useState(null);   // null = create, id = edit
+  const [existingImageUrl, setExistingImageUrl] = useState(null); // current saved image on edit
   const [annSuccess, setAnnSuccess] = useState('');
   const fileInputRef = useRef(null);
 
@@ -168,6 +265,11 @@ function AdminPanel() {
   const [togglingSlideId, setTogglingSlideId] = useState(null);
   const [reorderingSlideId, setReorderingSlideId] = useState(null);
   const slideFileRef = useRef(null);
+
+  // ── Player story profiles state ────────────────────────────────────────────
+  const [storyProfiles, setStoryProfiles] = useState([]);
+  const [storyProfilesLoading, setStoryProfilesLoading] = useState(false);
+  const [togglingStoryApprovalId, setTogglingStoryApprovalId] = useState(null);
 
   // ── Partners state ─────────────────────────────────────────────────────────
   const [partnersList, setPartnersList] = useState([]);
@@ -195,6 +297,9 @@ function AdminPanel() {
     fetchPartners();
     fetchTeams();
     fetchGrievances();
+    fetchRedemptionItems();
+    fetchRedemptionRequests();
+    fetchStoryProfiles();
   }, [isAdmin]);
 
   const fetchUsers = async () => {
@@ -213,17 +318,45 @@ function AdminPanel() {
   const fetchPendingTasks = async () => {
     setPendingLoading(true);
     try {
-      const { data, error } = await supabase
+      // Single-user tasks pending review
+      const { data: singleTasks } = await supabase
         .from('tasks')
         .select('*')
         .eq('status', 'pending_review')
+        .eq('is_multi_user', false)
         .order('claimed_at', { ascending: true });
-      if (error) throw error;
-      const taskData = data || [];
-      setPendingTasks(taskData);
 
-      // Fetch profiles for all unique claimed_by IDs
-      const ids = [...new Set(taskData.map(t => t.claimed_by).filter(Boolean))];
+      // Multi-user claims pending review (join task metadata)
+      const { data: multiClaims } = await supabase
+        .from('task_claims')
+        .select('*, tasks(id, title, points, description)')
+        .eq('status', 'pending_review')
+        .order('claimed_at', { ascending: true });
+
+      const normalizedSingle = (singleTasks || []).map(t => ({ ...t, _type: 'task' }));
+      const normalizedClaims = (multiClaims || []).map(c => ({
+        _type: 'claim',
+        id: c.id,
+        task_id: c.task_id,
+        user_id: c.user_id,
+        status: c.status,
+        proof_text: c.proof_text,
+        proof_image_url: c.proof_image_url,
+        claimed_at: c.claimed_at,
+        title: c.tasks?.title,
+        points: c.tasks?.points,
+        description: c.tasks?.description,
+      }));
+
+      const allPending = [...normalizedSingle, ...normalizedClaims]
+        .sort((a, b) => new Date(a.claimed_at) - new Date(b.claimed_at));
+      setPendingTasks(allPending);
+
+      // Fetch profiles for all claimers
+      const ids = [...new Set([
+        ...normalizedSingle.map(t => t.claimed_by),
+        ...normalizedClaims.map(c => c.user_id),
+      ].filter(Boolean))];
       if (ids.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
@@ -317,6 +450,7 @@ function AdminPanel() {
     setTaskFormError('');
     if (!taskForm.title.trim()) return setTaskFormError('Title is required.');
     if (!taskForm.description.trim()) return setTaskFormError('Description is required.');
+    if (!taskForm.category) return setTaskFormError('Please select a category.');
     if (!taskForm.points || Number(taskForm.points) <= 0) return setTaskFormError('Points must be greater than 0.');
     setTaskFormSaving(true);
     try {
@@ -324,7 +458,10 @@ function AdminPanel() {
         title: taskForm.title.trim(),
         description: taskForm.description.trim(),
         points: Number(taskForm.points),
+        category: taskForm.category,
         status: 'available',
+        requires_photo_proof: taskForm.requires_photo_proof,
+        is_multi_user: taskForm.is_multi_user,
       }]);
       if (error) throw error;
       setTaskForm(EMPTY_TASK_FORM);
@@ -333,28 +470,73 @@ function AdminPanel() {
     finally { setTaskFormSaving(false); }
   };
 
-  const handleValidateTask = async (task, approve) => {
-    setValidatingId(task.id); setValidationError('');
+  const handleCSVFile = (file) => {
+    if (!file || !file.name.endsWith('.csv')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rows = parseTaskCSV(e.target.result);
+      setCsvRows(rows);
+      setCsvDialog(p => ({ ...p, step: 'preview' }));
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBulkInsert = async () => {
+    const valid = csvRows.filter(r => r.errors.length === 0);
+    if (!valid.length) return;
+    setCsvUploading(true);
+    try {
+      const { error } = await supabase.from('tasks').insert(
+        valid.map(r => ({
+          title: r.title,
+          description: r.description,
+          points: r.points,
+          category: r.category,
+          requires_photo_proof: r.requires_photo_proof,
+          is_multi_user: r.is_multi_user,
+          status: 'available',
+        }))
+      );
+      if (error) throw error;
+      setCsvResult({ inserted: valid.length, skipped: csvRows.length - valid.length });
+      await fetchAllTasks();
+    } catch (err) {
+      setCsvResult({ error: err.message || 'Import failed.' });
+    } finally {
+      setCsvUploading(false);
+      setCsvDialog(p => ({ ...p, step: 'result' }));
+    }
+  };
+
+  const handleValidateTask = async (item, approve) => {
+    setValidatingId(item.id); setValidationError('');
+    const isMultiClaim = item._type === 'claim';
+    const claimerId = isMultiClaim ? item.user_id : item.claimed_by;
     try {
       if (approve) {
-        // Fetch current points, then increment
-        const { data: profileData } = await supabase
-          .from('profiles').select('reward_points_total').eq('id', task.claimed_by).single();
-        const current = profileData?.reward_points_total || 0;
-        const { error: pointsErr } = await supabase.from('profiles')
-          .update({ reward_points_total: current + task.points }).eq('id', task.claimed_by);
+        const { error: pointsErr } = await supabase
+          .rpc('increment_reward_points', { user_id: claimerId, points: item.points });
         if (pointsErr) throw pointsErr;
-        await supabase.from('tasks').update({ status: 'completed' }).eq('id', task.id);
+        if (isMultiClaim) {
+          await supabase.from('task_claims').update({ status: 'completed' }).eq('id', item.id);
+        } else {
+          await supabase.from('tasks').update({ status: 'completed' }).eq('id', item.id);
+        }
       } else {
-        // Reject: reset task to available
-        await supabase.from('tasks').update({
-          status: 'available',
-          claimed_by: null,
-          proof_text: null,
-          claimed_at: null,
-        }).eq('id', task.id);
+        if (isMultiClaim) {
+          // Delete the claim so the user can try again
+          await supabase.from('task_claims').delete().eq('id', item.id);
+        } else {
+          await supabase.from('tasks').update({
+            status: 'available',
+            claimed_by: null,
+            proof_text: null,
+            proof_image_url: null,
+            claimed_at: null,
+          }).eq('id', item.id);
+        }
       }
-      setPendingTasks(prev => prev.filter(t => t.id !== task.id));
+      setPendingTasks(prev => prev.filter(t => t.id !== item.id));
     } catch (err) { setValidationError(err.message || 'Failed to validate task.'); }
     finally { setValidatingId(null); }
   };
@@ -364,7 +546,7 @@ function AdminPanel() {
     try {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, description, points, status')
+        .select('id, title, description, points, status, is_multi_user, category')
         .order('created_at', { ascending: false });
       if (error) throw error;
       setAllTasks(data || []);
@@ -479,6 +661,34 @@ function AdminPanel() {
     finally { setReorderingSlideId(null); }
   };
 
+  // ── Player Story Profiles ──────────────────────────────────────────────────
+
+  const fetchStoryProfiles = async () => {
+    setStoryProfilesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url, story_tagline, story_quote, story_body, story_image_url, show_my_story, story_approved')
+        .eq('show_my_story', true)
+        .order('full_name', { ascending: true });
+      if (error) throw error;
+      setStoryProfiles(data || []);
+    } catch (err) { console.error(err); }
+    finally { setStoryProfilesLoading(false); }
+  };
+
+  const handleToggleStoryApproval = async (p) => {
+    setTogglingStoryApprovalId(p.id);
+    try {
+      const newVal = p.story_approved === false ? true : false;
+      const { error } = await supabase.from('profiles')
+        .update({ story_approved: newVal }).eq('id', p.id);
+      if (error) throw error;
+      setStoryProfiles(prev => prev.map(s => s.id === p.id ? { ...s, story_approved: newVal } : s));
+    } catch (err) { console.error(err); }
+    finally { setTogglingStoryApprovalId(null); }
+  };
+
   // ── Partners ───────────────────────────────────────────────────────────────
 
   const fetchPartners = async () => {
@@ -580,8 +790,69 @@ function AdminPanel() {
 
   const resetAnnForm = () => {
     setAnnForm(EMPTY_ANN_FORM);
-    setImageFile(null); setImagePreview(null); setAnnFormError('');
+    setImageFile(null); setImagePreview(null); setAnnFormError(''); setAnnPreview(false);
+    setEditingAnnId(null); setExistingImageUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleEditAnn = (ann) => {
+    setEditingAnnId(ann.id);
+    setAnnForm({
+      title: ann.title || '',
+      description: ann.description || '',
+      date: ann.date ? ann.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    });
+    setExistingImageUrl(ann.image_url || null);
+    setImageFile(null);
+    setImagePreview(ann.image_url || null);
+    setAnnPreview(false);
+    setAnnFormError('');
+    setAnnFormOpen(true);
+  };
+
+  const handleUpdateAnn = async () => {
+    setAnnFormError('');
+    if (!annForm.title.trim()) return setAnnFormError('Title is required.');
+    if (!annForm.description.trim()) return setAnnFormError('Body is required.');
+    if (!annForm.date) return setAnnFormError('Date is required.');
+    setAnnFormSaving(true);
+    try {
+      let imageUrl = existingImageUrl; // keep existing by default
+
+      // New file selected — upload it and delete old
+      if (imageFile) {
+        if (existingImageUrl) {
+          const oldPath = storagePathFromUrl(existingImageUrl);
+          if (oldPath) try { await deleteObject(ref(storage, oldPath)); } catch (_) {}
+        }
+        const ext = imageFile.name.split('.').pop();
+        const filePath = `announcement-images/${Date.now()}.${ext}`;
+        const sRef = ref(storage, filePath);
+        await uploadBytes(sRef, imageFile);
+        imageUrl = await getDownloadURL(sRef);
+      }
+
+      // Image explicitly removed (preview cleared, no new file)
+      if (!imageFile && !imagePreview && existingImageUrl) {
+        const oldPath = storagePathFromUrl(existingImageUrl);
+        if (oldPath) try { await deleteObject(ref(storage, oldPath)); } catch (_) {}
+        imageUrl = null;
+      }
+
+      const { error } = await supabase.from('announcements').update({
+        title: annForm.title.trim(),
+        description: annForm.description.trim(),
+        date: new Date(annForm.date).toISOString(),
+        image_url: imageUrl,
+      }).eq('id', editingAnnId);
+      if (error) throw error;
+
+      resetAnnForm(); setAnnFormOpen(false);
+      setAnnSuccess('Announcement updated.');
+      setTimeout(() => setAnnSuccess(''), 3000);
+      await fetchAnnouncements();
+    } catch (err) { setAnnFormError(err.message || 'Failed to update.'); }
+    finally { setAnnFormSaving(false); }
   };
 
   const handleImageChange = (e) => {
@@ -600,12 +871,11 @@ function AdminPanel() {
     try {
       let imageUrl = null;
       if (imageFile) {
-        const filePath = `${Date.now()}-${imageFile.name.replace(/\s+/g, '-')}`;
-        const { data: up, error: upErr } = await supabase.storage
-          .from(IMAGE_BUCKET).upload(filePath, imageFile, { cacheControl: '3600', upsert: false });
-        if (upErr) throw new Error(`Image upload failed: ${upErr.message}`);
-        const { data: urlData } = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(up.path);
-        imageUrl = urlData.publicUrl;
+        const ext = imageFile.name.split('.').pop();
+        const filePath = `announcement-images/${Date.now()}.${ext}`;
+        const sRef = ref(storage, filePath);
+        await uploadBytes(sRef, imageFile);
+        imageUrl = await getDownloadURL(sRef);
       }
       const { error } = await supabase.from('announcements').insert([{
         title: annForm.title.trim(), description: annForm.description.trim(),
@@ -623,8 +893,14 @@ function AdminPanel() {
   const handleDeleteAnn = async (id) => {
     setDeletingAnnId(id);
     try {
+      const ann = announcements.find(a => a.id === id);
       const { error } = await supabase.from('announcements').delete().eq('id', id);
       if (error) throw error;
+      // Clean up Firebase Storage image if present
+      if (ann?.image_url) {
+        const path = storagePathFromUrl(ann.image_url);
+        if (path) try { await deleteObject(ref(storage, path)); } catch (_) {}
+      }
       setAnnouncements(prev => prev.filter(a => a.id !== id));
     } catch (err) { console.error(err); }
     finally { setDeletingAnnId(null); }
@@ -702,6 +978,107 @@ function AdminPanel() {
       setGrievances(prev => prev.map(g => g.id === grievanceId ? { ...g, status: newStatus } : g));
     } catch (err) { console.error(err); }
     finally { setUpdatingGrievanceId(null); }
+  };
+
+  const fetchRedemptionItems = async () => {
+    setRedemptionItemsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('redemption_items')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setRedemptionItems(data || []);
+    } catch (err) { console.error(err); }
+    finally { setRedemptionItemsLoading(false); }
+  };
+
+  const fetchRedemptionRequests = async () => {
+    setRequestsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('redemptions')
+        .select('*, redemption_items(title, category, points_cost), profiles(full_name, username, avatar_url)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setRedemptionRequests(data || []);
+    } catch (err) { console.error(err); }
+    finally { setRequestsLoading(false); }
+  };
+
+  const handleSaveItem = async () => {
+    if (!itemForm.title.trim()) { setItemFormError('Title is required.'); return; }
+    const cost = Number(itemForm.points_cost);
+    if (!itemForm.points_cost || isNaN(cost) || cost <= 0) {
+      setItemFormError('Points cost must be a positive number.'); return;
+    }
+    const qlimit = itemForm.quantity_limit ? Number(itemForm.quantity_limit) : null;
+    if (qlimit !== null && (isNaN(qlimit) || qlimit < 1)) {
+      setItemFormError('Quantity limit must be a positive number.'); return;
+    }
+    setItemFormSaving(true); setItemFormError('');
+    try {
+      const { error } = await supabase.from('redemption_items').insert({
+        title: itemForm.title.trim(),
+        description: itemForm.description.trim() || null,
+        category: itemForm.category,
+        points_cost: cost,
+        requires_approval: itemForm.requires_approval,
+        quantity_limit: qlimit,
+        is_active: itemForm.is_active,
+      });
+      if (error) throw error;
+      setItemFormOpen(false);
+      setItemForm(EMPTY_ITEM_FORM);
+      await fetchRedemptionItems();
+    } catch (err) { setItemFormError(err.message || 'Failed to save item.'); }
+    finally { setItemFormSaving(false); }
+  };
+
+  const handleDeleteItem = async (id) => {
+    setDeletingItemId(id);
+    try {
+      const { error } = await supabase.from('redemption_items').delete().eq('id', id);
+      if (error) throw error;
+      setRedemptionItems(prev => prev.filter(i => i.id !== id));
+    } catch (err) { console.error(err); }
+    finally { setDeletingItemId(null); }
+  };
+
+  const handleToggleItem = async (item) => {
+    setTogglingItemId(item.id);
+    try {
+      const { error } = await supabase.from('redemption_items')
+        .update({ is_active: !item.is_active }).eq('id', item.id);
+      if (error) throw error;
+      setRedemptionItems(prev => prev.map(i => i.id === item.id ? { ...i, is_active: !item.is_active } : i));
+    } catch (err) { console.error(err); }
+    finally { setTogglingItemId(null); }
+  };
+
+  const handleApproveRequest = async (id) => {
+    setProcessingRequestId(id);
+    try {
+      const { error } = await supabase.from('redemptions')
+        .update({ status: 'fulfilled' }).eq('id', id);
+      if (error) throw error;
+      setRedemptionRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'fulfilled' } : r));
+    } catch (err) { console.error(err); }
+    finally { setProcessingRequestId(null); }
+  };
+
+  const handleRejectRequest = async () => {
+    setRejectSaving(true);
+    try {
+      const { error } = await supabase.rpc('refund_redemption', {
+        p_redemption_id: rejectDialog.id,
+        p_notes: rejectDialog.note.trim() || null,
+      });
+      if (error) throw error;
+      setRejectDialog({ open: false, id: null, note: '' });
+      await fetchRedemptionRequests();
+    } catch (err) { console.error(err); }
+    finally { setRejectSaving(false); }
   };
 
   // ── Access guard ───────────────────────────────────────────────────────────
@@ -784,6 +1161,30 @@ function AdminPanel() {
               Grievances
               {grievances.filter(g => g.status === 'open').length > 0 && (
                 <Chip label={grievances.filter(g => g.status === 'open').length} size="small" color="error" sx={{ height: 18, fontSize: '0.65rem' }} />
+              )}
+            </Box>
+          } />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Redemption Items
+              {redemptionItems.length > 0 && (
+                <Chip label={redemptionItems.length} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />
+              )}
+            </Box>
+          } />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Redemption Requests
+              {redemptionRequests.filter(r => r.status === 'pending').length > 0 && (
+                <Chip label={redemptionRequests.filter(r => r.status === 'pending').length} size="small" color="warning" sx={{ height: 18, fontSize: '0.65rem' }} />
+              )}
+            </Box>
+          } />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Player Stories
+              {storyProfiles.length > 0 && (
+                <Chip label={storyProfiles.length} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />
               )}
             </Box>
           } />
@@ -1293,10 +1694,17 @@ function AdminPanel() {
                 <Typography variant="h6" fontWeight="bold">Create Task</Typography>
               </Box>
               {!taskFormOpen && (
-                <Button variant="contained" size="small" startIcon={<AddIcon />}
-                  onClick={() => { setTaskFormOpen(true); setTaskFormError(''); }} sx={{ fontWeight: 'bold' }}>
-                  New Task
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button variant="outlined" size="small" startIcon={<UploadFileIcon />}
+                    onClick={() => { setCsvDialog({ open: true, step: 'upload' }); setCsvRows([]); setCsvResult(null); }}
+                    sx={{ fontWeight: 'bold' }}>
+                    Bulk Upload
+                  </Button>
+                  <Button variant="contained" size="small" startIcon={<AddIcon />}
+                    onClick={() => { setTaskFormOpen(true); setTaskFormError(''); }} sx={{ fontWeight: 'bold' }}>
+                    New Task
+                  </Button>
+                </Box>
               )}
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -1318,10 +1726,66 @@ function AdminPanel() {
                 <TextField fullWidth label="Description" placeholder="Describe exactly what needs to be done..."
                   margin="dense" required multiline minRows={3}
                   value={taskForm.description} onChange={e => setTaskForm(p => ({ ...p, description: e.target.value }))} />
+                <FormControl fullWidth margin="dense" required>
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    value={taskForm.category}
+                    label="Category"
+                    onChange={e => setTaskForm(p => ({ ...p, category: e.target.value }))}
+                    renderValue={(val) => {
+                      const cat = TASK_CATEGORIES.find(c => c.label === val);
+                      return cat ? (
+                        <Chip label={cat.label} size="small" sx={{ ...getCategoryStyle(val), fontWeight: 'bold' }} />
+                      ) : val;
+                    }}
+                  >
+                    {TASK_CATEGORIES.map(cat => (
+                      <MenuItem key={cat.label} value={cat.label}>
+                        <Chip label={cat.label} size="small" sx={{ ...getCategoryStyle(cat.label), fontWeight: 'bold', mr: 1 }} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
                 <TextField label="Reward Points" type="number" margin="dense" required
                   placeholder="e.g. 50"
                   value={taskForm.points} onChange={e => setTaskForm(p => ({ ...p, points: e.target.value }))}
                   InputProps={{ inputProps: { min: 1 } }} />
+                <FormControlLabel
+                  sx={{ mt: 1 }}
+                  control={
+                    <Switch
+                      checked={taskForm.requires_photo_proof}
+                      onChange={e => setTaskForm(p => ({ ...p, requires_photo_proof: e.target.checked }))}
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight="medium">Require photo proof</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Members must upload a screenshot when submitting proof
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  sx={{ mt: 1 }}
+                  control={
+                    <Switch
+                      checked={taskForm.is_multi_user}
+                      onChange={e => setTaskForm(p => ({ ...p, is_multi_user: e.target.checked }))}
+                      color="secondary"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight="medium">Multi-user task</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Multiple members can claim and complete this task independently
+                      </Typography>
+                    </Box>
+                  }
+                />
                 <Box sx={{ display: 'flex', gap: 2, mt: 2, justifyContent: 'flex-end' }}>
                   <Button onClick={() => { setTaskFormOpen(false); setTaskForm(EMPTY_TASK_FORM); }} disabled={taskFormSaving}>Cancel</Button>
                   <Button variant="contained" onClick={handleCreateTask} disabled={taskFormSaving}
@@ -1362,7 +1826,8 @@ function AdminPanel() {
             ) : (
               <List disablePadding>
                 {pendingTasks.map((task, idx) => {
-                  const claimer = claimerMap[task.claimed_by];
+                  const claimerId = task._type === 'claim' ? task.user_id : task.claimed_by;
+                  const claimer = claimerMap[claimerId];
                   const isValidating = validatingId === task.id;
                   return (
                     <React.Fragment key={task.id}>
@@ -1379,8 +1844,16 @@ function AdminPanel() {
                           primary={
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 0.5 }}>
                               <Typography variant="subtitle1" fontWeight="bold">{task.title}</Typography>
+                              {task.category && (
+                                <Chip label={task.category} size="small"
+                                  sx={{ ...getCategoryStyle(task.category), fontWeight: 'bold' }} />
+                              )}
                               <Chip icon={<StarIcon sx={{ fontSize: '14px !important' }} />}
                                 label={`${task.points} pts`} color="warning" size="small" sx={{ fontWeight: 'bold' }} />
+                              {task._type === 'claim' && (
+                                <Chip icon={<GroupsIcon sx={{ fontSize: '14px !important' }} />}
+                                  label="Multi-user" color="secondary" size="small" variant="outlined" />
+                              )}
                             </Box>
                           }
                           secondary={
@@ -1393,7 +1866,18 @@ function AdminPanel() {
                                 <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
                                   Proof:
                                 </Typography>
-                                <Typography variant="body2">{task.proof_text || '(no text provided)'}</Typography>
+                                {task.proof_image_url && (
+                                  <Box
+                                    component="a" href={task.proof_image_url} target="_blank" rel="noopener noreferrer"
+                                    sx={{ display: 'block', mb: task.proof_text ? 1 : 0 }}
+                                  >
+                                    <Box
+                                      component="img" src={task.proof_image_url} alt="Proof screenshot"
+                                      sx={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 1, border: '1px solid', borderColor: 'divider', cursor: 'pointer' }}
+                                    />
+                                  </Box>
+                                )}
+                                <Typography variant="body2">{task.proof_text || (!task.proof_image_url && '(no proof provided)')}</Typography>
                               </Box>
                               <Box sx={{ display: 'flex', gap: 1.5 }}>
                                 <Button
@@ -1461,12 +1945,26 @@ function AdminPanel() {
                         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                             <Typography variant="subtitle2" fontWeight="bold" noWrap>{task.title}</Typography>
+                            {task.category && (
+                              <Chip label={task.category} size="small"
+                                sx={{ ...getCategoryStyle(task.category), fontWeight: 'bold', height: 20, fontSize: '0.65rem' }} />
+                            )}
                             <Chip icon={<StarIcon sx={{ fontSize: '13px !important' }} />}
                               label={`${task.points} pts`} size="small" color="warning"
                               sx={{ fontWeight: 'bold', height: 20, fontSize: '0.7rem' }} />
                             <Chip label={STATUS_LABEL[task.status] || task.status} size="small"
                               color={STATUS_COLOR[task.status] || 'default'} variant="outlined"
                               sx={{ height: 20, fontSize: '0.65rem', fontWeight: 'bold' }} />
+                            {task.is_multi_user && (
+                              <Chip icon={<GroupsIcon sx={{ fontSize: '13px !important' }} />}
+                                label="Multi-user" size="small" color="secondary" variant="outlined"
+                                sx={{ height: 20, fontSize: '0.65rem' }} />
+                            )}
+                            {task.requires_photo_proof && (
+                              <Chip icon={<CameraAltIcon sx={{ fontSize: '13px !important' }} />}
+                                label="Photo" size="small" color="info" variant="outlined"
+                                sx={{ height: 20, fontSize: '0.65rem' }} />
+                            )}
                           </Box>
                           <Typography variant="caption" color="text.secondary" noWrap>{task.description}</Typography>
                         </Box>
@@ -1515,7 +2013,9 @@ function AdminPanel() {
             {annFormOpen && (
               <Box sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3, mb: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold">Compose Announcement</Typography>
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    {editingAnnId ? 'Edit Announcement' : 'Compose Announcement'}
+                  </Typography>
                   <IconButton size="small" onClick={() => { setAnnFormOpen(false); resetAnnForm(); }}>
                     <CloseIcon fontSize="small" />
                   </IconButton>
@@ -1524,9 +2024,48 @@ function AdminPanel() {
                 <TextField fullWidth label="Title" placeholder="e.g. Season Registration Now Open"
                   margin="dense" required value={annForm.title}
                   onChange={e => setAnnForm(p => ({ ...p, title: e.target.value }))} />
-                <TextField fullWidth label="Body" placeholder="Write the full announcement here..."
-                  margin="dense" required multiline minRows={4} value={annForm.description}
-                  onChange={e => setAnnForm(p => ({ ...p, description: e.target.value }))} />
+                {/* Body — write / preview tabs */}
+                <Box sx={{ mt: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Body <Typography component="span" variant="caption" color="text.disabled">— supports **bold**, *italic*, [links](url), - lists</Typography>
+                    </Typography>
+                    <Box sx={{ display: 'flex', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                      {['Write', 'Preview'].map(tab => (
+                        <Box key={tab} component="button" onClick={() => setAnnPreview(tab === 'Preview')}
+                          sx={{
+                            px: 1.5, py: 0.4, border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                            bgcolor: (tab === 'Preview') === annPreview ? 'primary.main' : 'transparent',
+                            color: (tab === 'Preview') === annPreview ? 'primary.contrastText' : 'text.secondary',
+                            transition: '0.15s',
+                          }}>
+                          {tab}
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                  {annPreview ? (
+                    <Box sx={{
+                      minHeight: 120, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1,
+                      bgcolor: 'background.paper', fontSize: '0.9rem', lineHeight: 1.8,
+                      color: annForm.description.trim() ? 'text.primary' : 'text.disabled',
+                      '& p': { mt: 0, mb: 1 }, '& strong': { fontWeight: 700 },
+                      '& ul,& ol': { pl: 2.5, mb: 1 }, '& li': { mb: 0.25 },
+                      '& a': { color: 'primary.main' },
+                      '& blockquote': { borderLeft: '3px solid', borderColor: 'divider', ml: 0, pl: 1.5, color: 'text.disabled', fontStyle: 'italic' },
+                      '& code': { fontFamily: 'monospace', fontSize: '0.85em', bgcolor: 'grey.100', px: 0.5, borderRadius: 0.5 },
+                    }}>
+                      {annForm.description.trim()
+                        ? <ReactMarkdown>{annForm.description}</ReactMarkdown>
+                        : 'Nothing to preview yet.'}
+                    </Box>
+                  ) : (
+                    <TextField fullWidth placeholder="Write the full announcement here..." required
+                      multiline minRows={4} value={annForm.description}
+                      onChange={e => setAnnForm(p => ({ ...p, description: e.target.value }))}
+                      sx={{ mt: 0 }} />
+                  )}
+                </Box>
                 <TextField label="Date" type="date" margin="dense" required value={annForm.date}
                   onChange={e => setAnnForm(p => ({ ...p, date: e.target.value }))}
                   sx={{ mt: 1 }} InputLabelProps={{ shrink: true }} />
@@ -1565,10 +2104,14 @@ function AdminPanel() {
 
                 <Box sx={{ display: 'flex', gap: 2, mt: 3, justifyContent: 'flex-end' }}>
                   <Button onClick={() => { setAnnFormOpen(false); resetAnnForm(); }} disabled={annFormSaving}>Cancel</Button>
-                  <Button variant="contained" onClick={handlePublish} disabled={annFormSaving}
+                  <Button variant="contained"
+                    onClick={editingAnnId ? handleUpdateAnn : handlePublish}
+                    disabled={annFormSaving}
                     startIcon={annFormSaving ? <CircularProgress size={16} color="inherit" /> : <CampaignIcon />}
                     sx={{ fontWeight: 'bold', px: 3 }}>
-                    {annFormSaving ? 'Publishing...' : 'Publish'}
+                    {annFormSaving
+                      ? (editingAnnId ? 'Saving...' : 'Publishing...')
+                      : (editingAnnId ? 'Save Changes' : 'Publish')}
                   </Button>
                 </Box>
               </Box>
@@ -1585,14 +2128,23 @@ function AdminPanel() {
                   <React.Fragment key={a.id}>
                     <ListItem disableGutters sx={{ alignItems: 'flex-start', py: 2 }}
                       secondaryAction={
-                        <Tooltip title="Delete">
-                          <span>
-                            <IconButton edge="end" color="error" size="small"
-                              onClick={() => handleDeleteAnn(a.id)} disabled={deletingAnnId === a.id}>
-                              {deletingAnnId === a.id ? <CircularProgress size={18} color="error" /> : <DeleteIcon fontSize="small" />}
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          <Tooltip title="Edit">
+                            <IconButton size="small" color="primary"
+                              onClick={() => handleEditAnn(a)}
+                              disabled={deletingAnnId === a.id}>
+                              <EditIcon fontSize="small" />
                             </IconButton>
-                          </span>
-                        </Tooltip>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <span>
+                              <IconButton edge="end" color="error" size="small"
+                                onClick={() => handleDeleteAnn(a.id)} disabled={deletingAnnId === a.id}>
+                                {deletingAnnId === a.id ? <CircularProgress size={18} color="error" /> : <DeleteIcon fontSize="small" />}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </Box>
                       }
                     >
                       <ListItemText
@@ -1802,6 +2354,609 @@ function AdminPanel() {
           </CardContent>
         </Card>
       </TabPanel>
+
+      {/* ══════════════ TAB 8: REDEMPTION ITEMS ══════════════ */}
+      <TabPanel value={activeTab} index={8}>
+        <Card sx={{ boxShadow: 3 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+              <CardGiftcardIcon sx={{ color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight="bold">Redemption Items</Typography>
+              <Box sx={{ ml: 'auto' }}>
+                <Button variant="contained" startIcon={<AddIcon />} size="small"
+                  onClick={() => { setItemForm(EMPTY_ITEM_FORM); setItemFormError(''); setItemFormOpen(true); }}
+                  sx={{ fontWeight: 'bold' }}>
+                  Add Item
+                </Button>
+              </Box>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Create and manage items members can redeem their points for.
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
+
+            {redemptionItemsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+            ) : redemptionItems.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                No redemption items yet. Add one to get started.
+              </Typography>
+            ) : (
+              <List disablePadding>
+                {redemptionItems.map((item, idx) => {
+                  const catStyle = getRedemptionCategoryStyle(item.category);
+                  const isDeleting = deletingItemId === item.id;
+                  const isToggling = togglingItemId === item.id;
+                  return (
+                    <React.Fragment key={item.id}>
+                      <ListItem disableGutters sx={{ alignItems: 'center', py: 1.5 }}
+                        secondaryAction={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Tooltip title={item.is_active ? 'Deactivate' : 'Activate'}>
+                              <span>
+                                <Switch
+                                  checked={Boolean(item.is_active)}
+                                  onChange={() => handleToggleItem(item)}
+                                  disabled={isToggling || isDeleting}
+                                  color="success" size="small"
+                                />
+                              </span>
+                            </Tooltip>
+                            <Tooltip title="Delete item">
+                              <span>
+                                <IconButton size="small" color="error"
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  disabled={isDeleting || isToggling}>
+                                  {isDeleting ? <CircularProgress size={16} /> : <DeleteIcon fontSize="small" />}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
+                        }
+                      >
+                        <ListItemAvatar>
+                          <Avatar sx={{ bgcolor: catStyle.bgcolor ?? 'action.hover', color: catStyle.color ?? 'text.primary', width: 40, height: 40 }}>
+                            <CardGiftcardIcon fontSize="small" />
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 14, flexWrap: 'wrap' }}>
+                              <Typography variant="subtitle2" fontWeight="bold">{item.title}</Typography>
+                              <Chip label={item.category} size="small" variant="outlined"
+                                sx={{ ...catStyle, height: 18, fontSize: '0.65rem' }} />
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <StarIcon sx={{ color: 'warning.main', fontSize: 14 }} />
+                                <Typography variant="caption" fontWeight="bold" color="warning.dark">
+                                  {item.points_cost?.toLocaleString()} pts
+                                </Typography>
+                              </Box>
+                              {!item.is_active && (
+                                <Chip label="Inactive" size="small" color="default" sx={{ height: 18, fontSize: '0.65rem' }} />
+                              )}
+                            </Box>
+                          }
+                          secondary={item.description || null}
+                        />
+                      </ListItem>
+                      {idx < redemptionItems.length - 1 && <Divider component="li" />}
+                    </React.Fragment>
+                  );
+                })}
+              </List>
+            )}
+          </CardContent>
+        </Card>
+      </TabPanel>
+
+      {/* ══════════════ TAB 9: REDEMPTION REQUESTS ══════════════ */}
+      <TabPanel value={activeTab} index={9}>
+        <Card sx={{ boxShadow: 3 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+              <StarIcon sx={{ color: 'warning.main' }} />
+              <Typography variant="h6" fontWeight="bold">Redemption Requests</Typography>
+              {redemptionRequests.filter(r => r.status === 'pending').length > 0 && (
+                <Chip label={`${redemptionRequests.filter(r => r.status === 'pending').length} pending`}
+                  color="warning" size="small" sx={{ fontWeight: 'bold' }} />
+              )}
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Review and process member redemption requests. Approving marks the item as fulfilled; rejecting refunds the points.
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
+
+            {requestsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+            ) : redemptionRequests.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                No redemption requests yet.
+              </Typography>
+            ) : (
+              <List disablePadding>
+                {redemptionRequests.map((r, idx) => {
+                  const catStyle = getRedemptionCategoryStyle(r.redemption_items?.category);
+                  const isPending = r.status === 'pending';
+                  const isProcessing = processingRequestId === r.id;
+                  const profile = r.profiles;
+                  return (
+                    <React.Fragment key={r.id}>
+                      <ListItem disableGutters sx={{ alignItems: 'flex-start', py: 1.5 }}
+                        secondaryAction={isPending ? (
+                          <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                            {isProcessing && <CircularProgress size={16} sx={{ mt: 1 }} />}
+                            <Tooltip title="Approve — mark as fulfilled">
+                              <span>
+                                <IconButton size="small" color="success"
+                                  onClick={() => handleApproveRequest(r.id)}
+                                  disabled={isProcessing}>
+                                  <CheckCircleIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <Tooltip title="Reject — refund points">
+                              <span>
+                                <IconButton size="small" color="error"
+                                  onClick={() => setRejectDialog({ open: true, id: r.id, note: '' })}
+                                  disabled={isProcessing}>
+                                  <CancelIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
+                        ) : (
+                          <Chip
+                            label={r.status === 'fulfilled' ? 'Fulfilled' : 'Rejected'}
+                            size="small"
+                            color={r.status === 'fulfilled' ? 'success' : 'error'}
+                            sx={{ fontWeight: 'bold', mt: 0.5 }}
+                          />
+                        )}
+                      >
+                        <ListItemAvatar>
+                          <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main', fontWeight: 'bold' }}>
+                            {getInitials(profile?.full_name)}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 14, flexWrap: 'wrap', mb: 0.25 }}>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                {r.redemption_items?.title ?? 'Unknown item'}
+                              </Typography>
+                              {r.redemption_items?.category && (
+                                <Chip label={r.redemption_items.category} size="small" variant="outlined"
+                                  sx={{ ...catStyle, height: 18, fontSize: '0.65rem' }} />
+                              )}
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <StarIcon sx={{ color: 'warning.main', fontSize: 14 }} />
+                                <Typography variant="caption" fontWeight="bold" color="warning.dark">
+                                  {r.redemption_items?.points_cost?.toLocaleString()} pts
+                                </Typography>
+                              </Box>
+                            </Box>
+                          }
+                          secondary={
+                            <Box component="span">
+                              <Typography variant="caption" component="span" fontWeight="bold">
+                                {profile?.full_name ?? profile?.username ?? 'Unknown user'}
+                              </Typography>
+                              <Typography variant="caption" component="span" color="text.disabled">
+                                {' · '}{fmtDate(r.created_at)}
+                              </Typography>
+                              {r.admin_notes && (
+                                <Typography variant="caption" component="div" color="text.secondary" sx={{ mt: 0.5 }}>
+                                  Note: {r.admin_notes}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                      {idx < redemptionRequests.length - 1 && <Divider component="li" />}
+                    </React.Fragment>
+                  );
+                })}
+              </List>
+            )}
+          </CardContent>
+        </Card>
+      </TabPanel>
+
+      {/* ══════════════ TAB 10: PLAYER STORIES ══════════════ */}
+      <TabPanel value={activeTab} index={10}>
+        <Card sx={{ boxShadow: 3 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+              <PeopleIcon sx={{ color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight="bold">Player Story Profiles</Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Players who have opted to share their story appear here. You can block any profile from appearing on the landing page and /stories page. Players manage their own content from their Dashboard.
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
+
+            {storyProfilesLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+            ) : storyProfiles.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 6 }}>
+                <PeopleIcon sx={{ fontSize: 52, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="body1" color="text.secondary">No players have opted in yet.</Typography>
+                <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
+                  Players can share their story from their Dashboard profile page.
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {storyProfiles.map((p) => {
+                  const isToggling = togglingStoryApprovalId === p.id;
+                  const isComplete = !!(p.story_image_url) && !!(p.story_quote || p.story_body);
+                  const isBlocked  = p.story_approved === false;
+                  const isLive     = isComplete && !isBlocked;
+                  return (
+                    <Box key={p.id} sx={{
+                      display: 'flex', alignItems: 'center', gap: 2,
+                      border: '1px solid', borderColor: isBlocked ? 'error.light' : 'divider',
+                      borderRadius: 2, p: 1.5,
+                      bgcolor: isBlocked ? 'error.50' : 'background.paper',
+                      opacity: isBlocked ? 0.75 : 1,
+                    }}>
+                      {/* Avatar / story thumbnail */}
+                      <Box component="img"
+                        src={p.story_image_url || p.avatar_url || ''}
+                        alt={p.full_name || p.username}
+                        sx={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 1.5, flexShrink: 0, bgcolor: 'grey.200' }}
+                        onError={e => { e.target.style.display = 'none'; }}
+                      />
+
+                      {/* Info */}
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 0.25 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" noWrap>
+                            {p.full_name || p.username || 'Unknown player'}
+                          </Typography>
+                          {p.username && p.full_name && (
+                            <Typography variant="caption" color="text.disabled">@{p.username}</Typography>
+                          )}
+                          <Chip
+                            label={isBlocked ? 'Blocked' : isLive ? 'Live' : 'Incomplete'}
+                            size="small"
+                            color={isBlocked ? 'error' : isLive ? 'success' : 'default'}
+                            variant={isLive ? 'filled' : 'outlined'}
+                            sx={{ fontWeight: 'bold', height: 18, fontSize: '0.62rem' }}
+                          />
+                          {!isComplete && !isBlocked && (
+                            <Chip label="Missing photo or text" size="small" variant="outlined"
+                              sx={{ height: 18, fontSize: '0.62rem', color: 'warning.main', borderColor: 'warning.main' }} />
+                          )}
+                        </Box>
+                        {p.story_tagline && (
+                          <Typography variant="caption" color="text.secondary" noWrap display="block">{p.story_tagline}</Typography>
+                        )}
+                        {p.story_quote && (
+                          <Typography variant="caption" color="text.disabled" noWrap display="block" sx={{ fontStyle: 'italic' }}>
+                            "{p.story_quote}"
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {/* Block / unblock */}
+                      <Tooltip title={isBlocked ? 'Unblock — allow on site' : 'Block — remove from site'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color={isBlocked ? 'default' : 'primary'}
+                            onClick={() => handleToggleStoryApproval(p)}
+                            disabled={isToggling}
+                          >
+                            {isToggling
+                              ? <CircularProgress size={16} />
+                              : isBlocked
+                                ? <VisibilityOffIcon fontSize="small" />
+                                : <VisibilityIcon fontSize="small" />
+                            }
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      </TabPanel>
+
+      {/* ══════════════ BULK CSV UPLOAD DIALOG ══════════════ */}
+      <Dialog
+        open={csvDialog.open}
+        onClose={() => !csvUploading && setCsvDialog({ open: false, step: 'upload' })}
+        maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 'bold' }}>
+          {csvDialog.step === 'result' ? 'Import Complete' : 'Bulk Upload Tasks'}
+        </DialogTitle>
+        <DialogContent>
+
+          {/* ── Step 1: Upload ─────────────────────────────────────── */}
+          {csvDialog.step === 'upload' && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Upload a CSV file to create multiple tasks at once. Download the template to get started.
+              </Typography>
+              <Button
+                variant="outlined" size="small" startIcon={<DownloadIcon />}
+                onClick={downloadTaskTemplate} sx={{ mb: 3, fontWeight: 'bold' }}
+              >
+                Download Template
+              </Button>
+
+              <Box
+                onDragOver={e => { e.preventDefault(); setCsvDragOver(true); }}
+                onDragLeave={() => setCsvDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault(); setCsvDragOver(false);
+                  handleCSVFile(e.dataTransfer.files[0]);
+                }}
+                onClick={() => csvFileRef.current?.click()}
+                sx={{
+                  border: '2px dashed',
+                  borderColor: csvDragOver ? 'primary.main' : 'divider',
+                  borderRadius: 2, p: 5,
+                  textAlign: 'center', cursor: 'pointer',
+                  bgcolor: csvDragOver ? 'action.hover' : 'grey.50',
+                  transition: 'all 0.15s',
+                  '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+                }}
+              >
+                <UploadFileIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="body1" fontWeight="medium">Drop your CSV here</Typography>
+                <Typography variant="body2" color="text.secondary">or click to browse</Typography>
+              </Box>
+              <input
+                ref={csvFileRef} type="file" accept=".csv"
+                style={{ display: 'none' }}
+                onChange={e => handleCSVFile(e.target.files?.[0])}
+              />
+
+              <Box sx={{ mt: 2.5, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
+                  Required columns
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                  title, description, points, category, requires_photo_proof, is_multi_user
+                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                  Valid categories: {TASK_CATEGORIES.map(c => c.label).join(', ')}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+
+          {/* ── Step 2: Preview ────────────────────────────────────── */}
+          {csvDialog.step === 'preview' && (() => {
+            const validRows = csvRows.filter(r => r.errors.length === 0);
+            const invalidRows = csvRows.filter(r => r.errors.length > 0);
+            return (
+              <Box>
+                <Box sx={{ display: 'flex', gap: 1.5, mb: 2.5, flexWrap: 'wrap' }}>
+                  <Chip icon={<CheckCircleIcon />} label={`${validRows.length} ready to import`}
+                    color="success" size="small" variant="outlined" sx={{ fontWeight: 'bold' }} />
+                  {invalidRows.length > 0 && (
+                    <Chip icon={<CancelIcon />} label={`${invalidRows.length} will be skipped`}
+                      color="error" size="small" variant="outlined" sx={{ fontWeight: 'bold' }} />
+                  )}
+                </Box>
+
+                <Box sx={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {csvRows.map(row => {
+                    const isValid = row.errors.length === 0;
+                    return (
+                      <Box key={row._row} sx={{
+                        display: 'flex', gap: 1.5, alignItems: 'flex-start',
+                        p: 1.5, borderRadius: 1.5,
+                        bgcolor: isValid ? 'rgba(46,125,50,0.07)' : 'rgba(211,47,47,0.07)',
+                        border: '1px solid',
+                        borderColor: isValid ? 'rgba(46,125,50,0.25)' : 'rgba(211,47,47,0.25)',
+                      }}>
+                        {isValid
+                          ? <CheckCircleIcon sx={{ color: 'success.main', fontSize: 18, mt: 0.2, flexShrink: 0 }} />
+                          : <CancelIcon sx={{ color: 'error.main', fontSize: 18, mt: 0.2, flexShrink: 0 }} />
+                        }
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography variant="caption" color="text.disabled">Row {row._row}</Typography>
+                            {isValid && (
+                              <>
+                                <Typography variant="body2" fontWeight="bold" noWrap>{row.title}</Typography>
+                                <Chip label={row.category} size="small" variant="outlined"
+                                  sx={{ ...getCategoryStyle(row.category), height: 18, fontSize: '0.65rem' }} />
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <StarIcon sx={{ color: 'warning.main', fontSize: 14 }} />
+                                  <Typography variant="caption" fontWeight="bold" color="warning.dark">
+                                    {row.points} pts
+                                  </Typography>
+                                </Box>
+                              </>
+                            )}
+                          </Box>
+                          {!isValid && row.errors.map((e, i) => (
+                            <Typography key={i} variant="caption" color="error.main" display="block">
+                              {e}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Box>
+
+                {validRows.length === 0 && (
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    No valid rows found. Fix the errors and re-upload.
+                  </Alert>
+                )}
+              </Box>
+            );
+          })()}
+
+          {/* ── Step 3: Result ─────────────────────────────────────── */}
+          {csvDialog.step === 'result' && csvResult && (
+            <Box sx={{ textAlign: 'center', py: 2 }}>
+              {csvResult.error ? (
+                <Alert severity="error">{csvResult.error}</Alert>
+              ) : (
+                <>
+                  <CheckCircleIcon sx={{ fontSize: 52, color: 'success.main', mb: 1.5 }} />
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>
+                    {csvResult.inserted} task{csvResult.inserted !== 1 ? 's' : ''} created
+                  </Typography>
+                  {csvResult.skipped > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      {csvResult.skipped} row{csvResult.skipped !== 1 ? 's' : ''} skipped due to validation errors.
+                    </Typography>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
+
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          {csvDialog.step === 'upload' && (
+            <Button onClick={() => setCsvDialog({ open: false, step: 'upload' })}>Cancel</Button>
+          )}
+          {csvDialog.step === 'preview' && (
+            <>
+              <Button onClick={() => setCsvDialog(p => ({ ...p, step: 'upload' }))} disabled={csvUploading}>
+                Back
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleBulkInsert}
+                disabled={csvUploading || csvRows.filter(r => r.errors.length === 0).length === 0}
+                startIcon={csvUploading ? <CircularProgress size={16} color="inherit" /> : <UploadFileIcon />}
+                sx={{ fontWeight: 'bold', px: 3 }}
+              >
+                {csvUploading
+                  ? 'Importing...'
+                  : `Import ${csvRows.filter(r => r.errors.length === 0).length} Task${csvRows.filter(r => r.errors.length === 0).length !== 1 ? 's' : ''}`}
+              </Button>
+            </>
+          )}
+          {csvDialog.step === 'result' && (
+            <Button
+              variant="contained"
+              onClick={() => setCsvDialog({ open: false, step: 'upload' })}
+              sx={{ fontWeight: 'bold' }}
+            >
+              Done
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* ══════════════ REDEMPTION ITEM DIALOG ══════════════ */}
+      <Dialog open={itemFormOpen} onClose={() => !itemFormSaving && setItemFormOpen(false)}
+        maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>Add Redemption Item</DialogTitle>
+        <DialogContent>
+          {itemFormError && <Alert severity="error" sx={{ mb: 2 }}>{itemFormError}</Alert>}
+          <TextField
+            fullWidth label="Title" margin="normal" required
+            value={itemForm.title}
+            onChange={e => setItemForm(p => ({ ...p, title: e.target.value }))}
+          />
+          <TextField
+            fullWidth label="Description" margin="normal" multiline rows={2}
+            helperText="Optional — shown to members on the catalog."
+            value={itemForm.description}
+            onChange={e => setItemForm(p => ({ ...p, description: e.target.value }))}
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Category</InputLabel>
+            <Select
+              label="Category"
+              value={itemForm.category}
+              onChange={e => setItemForm(p => ({ ...p, category: e.target.value }))}
+            >
+              {REDEMPTION_CATEGORIES.map(c => (
+                <MenuItem key={c.label} value={c.label}>{c.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            fullWidth label="Points Cost" margin="normal" required type="number"
+            inputProps={{ min: 1 }}
+            value={itemForm.points_cost}
+            onChange={e => setItemForm(p => ({ ...p, points_cost: e.target.value }))}
+          />
+          <TextField
+            fullWidth label="Quantity Limit" margin="normal" type="number"
+            helperText="Leave blank for unlimited."
+            inputProps={{ min: 1 }}
+            value={itemForm.quantity_limit}
+            onChange={e => setItemForm(p => ({ ...p, quantity_limit: e.target.value }))}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={itemForm.requires_approval}
+                onChange={e => setItemForm(p => ({ ...p, requires_approval: e.target.checked }))}
+                color="warning"
+              />
+            }
+            label="Requires admin approval before fulfilment"
+            sx={{ mt: 1 }}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={itemForm.is_active}
+                onChange={e => setItemForm(p => ({ ...p, is_active: e.target.checked }))}
+                color="success"
+              />
+            }
+            label="Active (visible to members)"
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button onClick={() => setItemFormOpen(false)} disabled={itemFormSaving}>Cancel</Button>
+          <Button variant="contained" onClick={handleSaveItem} disabled={itemFormSaving}
+            startIcon={itemFormSaving ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{ fontWeight: 'bold', px: 3 }}>
+            {itemFormSaving ? 'Saving...' : 'Add Item'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ══════════════ REJECT DIALOG ══════════════ */}
+      <Dialog open={rejectDialog.open}
+        onClose={() => !rejectSaving && setRejectDialog({ open: false, id: null, note: '' })}
+        maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>Reject Redemption</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            The member's points will be refunded. You can optionally add a note explaining the reason.
+          </Typography>
+          <TextField
+            fullWidth label="Note (optional)" margin="normal" multiline rows={2}
+            placeholder="e.g. Out of stock, please try again later."
+            value={rejectDialog.note}
+            onChange={e => setRejectDialog(p => ({ ...p, note: e.target.value }))}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button onClick={() => setRejectDialog({ open: false, id: null, note: '' })} disabled={rejectSaving}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="error" onClick={handleRejectRequest} disabled={rejectSaving}
+            startIcon={rejectSaving ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{ fontWeight: 'bold', px: 3 }}>
+            {rejectSaving ? 'Rejecting...' : 'Reject & Refund'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ══════════════ MEMBERSHIP DIALOG ══════════════ */}
       <Dialog open={memberDialog.open} onClose={() => !memberSaving && setMemberDialog({ open: false, targetUser: null })}

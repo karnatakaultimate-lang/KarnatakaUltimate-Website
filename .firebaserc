@@ -2,6 +2,13 @@
   "projects": {
     "KUPA-Website": "kupa-main"
   },
-  "targets": {},
+  "targets": {
+    "kupa-main": {
+      "hosting": {
+        "main": ["kupa-main"],
+        "legacy": ["karnatakaultimate"]
+      }
+    }
+  },
   "etags": {}
 }

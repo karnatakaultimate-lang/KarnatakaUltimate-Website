@@ -10,6 +10,7 @@ import { AuthProvider } from './contexts/AuthContext';
 
 import Navigation from './components/Navigation';
 import Landing from './pages/Landing';
+import LandingNew from './pages/LandingNew';
 import Announcements from './pages/Announcements';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -21,9 +22,12 @@ import AdminPanel from './pages/AdminPanel';
 import AnnouncementDetail from './pages/AnnouncementDetail';
 import Teams from './pages/Teams';
 import TeamDetails from './pages/TeamDetails';
+import TeamBoard   from './pages/TeamBoard';
 import Grievances from './pages/Grievances';
 import GrievanceDetail from './pages/GrievanceDetail';
 import ComingSoon from './pages/ComingSoon';
+import Redeem from './pages/Redeem';
+import PlayerStories from './pages/PlayerStories';
 
 // Renders the element only if the site_config key is not explicitly false.
 // Falls back to ComingSoon for disabled modules without a full page redirect.
@@ -48,7 +52,7 @@ function App() {
           <Router>
             <Navigation>
               <Routes>
-                <Route path="/" element={<Landing />} />
+                <Route path="/" element={<LandingNew />} />
                 <Route path="/announcements" element={<Announcements />} />
                 <Route path="/announcements/:id" element={<AnnouncementDetail />} />
                 <Route path="/login" element={<Login />} />
@@ -71,6 +75,12 @@ function App() {
                   path="/teams/:id"
                   element={<ModuleRoute configKey="is_teams_enabled" element={<TeamDetails />} />}
                 />
+                <Route
+                  path="/teams/:id/board"
+                  element={<ModuleRoute configKey="is_teams_enabled" element={<TeamBoard />} />}
+                />
+                <Route path="/redeem" element={<Redeem />} />
+                <Route path="/stories" element={<PlayerStories />} />
                 <Route path="/grievances" element={<Grievances />} />
                 <Route path="/grievances/:id" element={<GrievanceDetail />} />
                 <Route path="/admin" element={<AdminPanel />} />

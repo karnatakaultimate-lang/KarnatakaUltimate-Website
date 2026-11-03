@@ -3,6 +3,7 @@ import {
   Box, Typography, Card, CardContent, Chip, Button,
   Divider, CircularProgress, Tooltip
 } from '@mui/material';
+import ReactMarkdown from 'react-markdown';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import ShareIcon from '@mui/icons-material/Share';
@@ -153,14 +154,33 @@ function AnnouncementDetail() {
 
           <Divider sx={{ mb: 3 }} />
 
-          {/* Body */}
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ lineHeight: 2, fontSize: '1.1rem', whiteSpace: 'pre-wrap' }}
-          >
-            {announcement.description}
-          </Typography>
+          {/* Body — rendered as Markdown */}
+          <Box sx={{
+            color: 'text.secondary',
+            fontSize: '1.1rem',
+            lineHeight: 2,
+            '& p': { mt: 0, mb: 1.5 },
+            '& strong': { color: 'text.primary', fontWeight: 700 },
+            '& em': { fontStyle: 'italic' },
+            '& h1,& h2,& h3': { color: 'text.primary', fontWeight: 700, mt: 3, mb: 1, lineHeight: 1.3 },
+            '& h1': { fontSize: '1.6rem' },
+            '& h2': { fontSize: '1.3rem' },
+            '& h3': { fontSize: '1.1rem' },
+            '& ul,& ol': { pl: 3, mb: 1.5 },
+            '& li': { mb: 0.5 },
+            '& a': { color: 'primary.main', textDecorationColor: 'primary.main' },
+            '& blockquote': {
+              borderLeft: '3px solid', borderColor: 'divider',
+              ml: 0, pl: 2, color: 'text.disabled', fontStyle: 'italic',
+            },
+            '& code': {
+              fontFamily: 'monospace', fontSize: '0.9em',
+              bgcolor: 'grey.100', px: 0.5, borderRadius: 0.5,
+            },
+            '& hr': { border: 'none', borderTop: '1px solid', borderColor: 'divider', my: 2 },
+          }}>
+            <ReactMarkdown>{announcement.description}</ReactMarkdown>
+          </Box>
         </CardContent>
       </Card>
     </Box>
